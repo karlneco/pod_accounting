@@ -1,4 +1,7 @@
-from flask import Blueprint, render_template, url_for, redirect, flash, request
+import os
+import uuid
+
+from flask import Blueprint, render_template, url_for, redirect, flash, request, current_app
 from sqlalchemy import func
 from io import TextIOWrapper
 import csv
@@ -52,6 +55,16 @@ def import_orders():
             flash('No file selected', 'warning')
             return redirect(url_for('orders.import_orders'))
 
+        upload_dir = os.path.join(current_app.root_path, 'uploads')
+        os.makedirs(upload_dir, exist_ok=True)
+
+        # generate a unique filename
+        file_key = f"{uuid.uuid4().hex}.csv"
+        file_path = os.path.join(upload_dir, file_key)
+
+        # persist the upload
+        file.save(file_path)
+
         # Load existing DB state to avoid duplicates
         existing_customers = {c.email for c in Customer.query.with_entities(Customer.email).all()}
         existing_products = {p.name for p in Product.query.with_entities(Product.name).all()}
@@ -60,6 +73,7 @@ def import_orders():
         # Prepare data structures for new entries only
         customers_to_create = {}
         products_to_create = {}
+        order_currencies = {}
         orders_data = {}
         current_order = None
 
@@ -70,11 +84,13 @@ def import_orders():
             order_num_raw = row.get('Name', '').strip()
             customer_email = row.get('Email', '').strip()
             financial_status = row.get('Financial Status', '').strip()
+            order_currency = row.get('Currency').strip() or '???'
 
             # Identify new order row by presence of financial status
             if order_num_raw and financial_status:
                 order_number = order_num_raw.lstrip('#')
                 delivery_status = row.get('Fulfillment Status', '').strip() or 'pending'
+                order_currencies[order_number] = order_currency
 
                 # If order exists, update status and skip import
                 if order_number in existing_orders:
@@ -89,7 +105,15 @@ def import_orders():
                 # Else, queue new order for preview
                 order_date = row.get('Created at', '').split(' ')[0]
                 total_str = row.get('Total', '').strip() or '0'
+                order_discount_amount_str = row.get('Discount Amount').strip() or 0
+                order_sub_total_str = row.get('Subtotal').strip() or 0
+                order_shipping_str = row.get('Shipping').strip() or 0
+                order_taxes_str = row.get('Taxes').strip() or 0
                 order_total = Decimal(total_str)
+                order_discount_amount = Decimal(order_discount_amount_str)
+                order_sub_total = Decimal(order_sub_total_str)
+                order_shipping = Decimal(order_shipping_str)
+                order_taxes = Decimal(order_taxes_str)
 
                 # Queue customer creation if missing
                 if customer_email and customer_email not in existing_customers and customer_email not in customers_to_create:
@@ -116,8 +140,12 @@ def import_orders():
                     'order_number': order_number,
                     'customer_email': customer_email,
                     'order_date': order_date,
-                    'order_total': order_total,
                     'delivery_status': delivery_status,
+                    'discount_amount': order_discount_amount,
+                    'sub_total': order_sub_total,
+                    'shipping': order_shipping,
+                    'taxes': order_taxes,
+                    'order_total': order_total,
                     'items': []
                 }
                 current_order = order_number
@@ -125,11 +153,15 @@ def import_orders():
             # Handle line items for new orders
             line_name = row.get('Lineitem name', '').strip()
             if line_name and current_order:
-                base_name = line_name.split(' - ')[0]
+                parts = line_name.rsplit(' - ', 1)
+                base_name = parts[0]
+                variant = parts[1] if len(parts) > 1 else ''
                 price_str = row.get('Lineitem price', '').strip() or '0'
+                sku = row.get('Lineitem sku', '').strip() or '0'
                 quantity_str = row.get('Lineitem quantity', '').strip() or '0'
                 price = Decimal(price_str)
                 quantity = int(quantity_str)
+
 
                 # Queue product creation if missing
                 if base_name and base_name not in existing_products and base_name not in products_to_create:
@@ -137,8 +169,11 @@ def import_orders():
 
                 orders_data[current_order]['items'].append({
                     'name': base_name,
+                    'product_sku': sku,
+                    'variant': variant,
                     'quantity': quantity,
-                    'unit_price': price
+                    'unit_price': price,
+                    'order_currency': order_currencies[current_order],
                 })
 
         # Commit any status updates
@@ -154,3 +189,31 @@ def import_orders():
 
     # GET: show upload form
     return render_template('orders/import.html')
+
+
+@bp.route('/import/confirm', methods=['POST'])
+def confirm_import():
+    file_key = request.form.get('file_key')
+    if not file_key:
+        flash('No import in progress.', 'warning')
+        return redirect(url_for('orders.import_orders'))
+
+    # Reconstruct the file path
+    import os
+    upload_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'uploads'))
+    filepath   = os.path.join(upload_dir, file_key)
+    if not os.path.exists(filepath):
+        flash('Import session expired. Please re-upload.', 'warning')
+        return redirect(url_for('orders.import_orders'))
+
+    # Now re-run your “perform_import” logic here:
+    #   - parse the CSV again
+    #   - create customers, products, orders & items
+    #   - commit to DB
+    count = perform_import(filepath)   # you’ll need to extract and reuse your import code
+
+    # Clean up the temp file
+    os.remove(filepath)
+
+    flash(f'Successfully imported {count} new orders!', 'success')
+    return redirect(url_for('orders.list_orders'))

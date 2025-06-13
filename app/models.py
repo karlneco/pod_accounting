@@ -3,11 +3,11 @@ from sqlalchemy import MetaData
 
 # define naming patterns
 naming_convention = {
-    "ix":  "ix_%(column_0_label)s",
-    "uq":  "uq_%(table_name)s_%(column_0_name)s",
-    "ck":  "ck_%(table_name)s_%(constraint_name)s",
-    "fk":  "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk":  "pk_%(table_name)s"
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s"
 }
 
 # pass it into the metadata used by SQLAlchemy
@@ -92,7 +92,11 @@ class Order(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
     order_date = db.Column(db.Date, nullable=False)
     total_amount = db.Column(db.Numeric(12, 2), nullable=False)
+    sub_total = db.Column(db.Numeric(12, 2), nullable=False)
+    shipping = db.Column(db.Numeric(12, 2), nullable=False)
+    taxes = db.Column(db.Numeric(12, 2), nullable=False)
     discount_amount = db.Column(db.Numeric(12, 2), default=0)
+    discount_code = db.Column(db.String(64), nullable=True)
     discount_percent = db.Column(db.Numeric(5, 2), default=0)  # 0–100%
     delivery_status = db.Column(
         db.Enum('pending', 'processing', 'shipped', 'delivered', 'cancelled', name='delivery_statuses'),
@@ -111,6 +115,7 @@ class OrderItem(db.Model):
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=True)
     product_sku = db.Column(db.String(64), nullable=False)
+    variant = db.Column(db.String(128), nullable=True)
     quantity = db.Column(db.Integer, nullable=False)
     unit_price = db.Column(db.Numeric(12, 2), nullable=False)
     subtotal = db.Column(db.Numeric(12, 2), nullable=False)
