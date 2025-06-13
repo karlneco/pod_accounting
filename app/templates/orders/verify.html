@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">Verify Import</h1>
+
+  <h2>Customers to Create</h2>
+  <table class="table table-striped">
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Phone</th><th>Address</th></tr>
+    </thead>
+    <tbody>
+      {% for email, c in customers.items() %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td>{{ c.email }}</td>
+        <td>{{ c.phone }}</td>
+        <td>{{ c.address }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Products to Create</h2>
+  <table class="table table-striped">
+    <thead>
+      <tr><th>SKU</th><th>Name</th><th>Price</th></tr>
+    </thead>
+    <tbody>
+      {% for sku, p in products.items() %}
+      <tr>
+        <td>{{ sku }}</td>
+        <td>{{ p.name }}</td>
+        <td>${{ '%.2f'|format(p.price) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Orders to Create</h2>
+  {% for order_num, o in orders.items() %}
+  <div class="mb-4">
+    <h5>
+      Order {{ o.order_number }} &ndash; {{ o.customer_email }} &ndash; {{ o.order_date }} &ndash; Total: ${{ '%.2f'|format(o.order_total) }}
+    </h5>
+    <table class="table">
+      <thead>
+        <tr><th>SKU</th><th>Name</th><th>Quantity</th><th>Unit Price</th></tr>
+      </thead>
+      <tbody>
+        {% for item in o['items'] %}
+        <tr>
+          <td>{{ item.sku }}</td>
+          <td>{{ item.name }}</td>
+          <td>{{ item.quantity }}</td>
+          <td>${{ '%.2f'|format(item.unit_price) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
