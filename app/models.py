@@ -1,4 +1,17 @@
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import MetaData
+
+# define naming patterns
+naming_convention = {
+    "ix":  "ix_%(column_0_label)s",
+    "uq":  "uq_%(table_name)s_%(column_0_name)s",
+    "ck":  "ck_%(table_name)s_%(constraint_name)s",
+    "fk":  "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk":  "pk_%(table_name)s"
+}
+
+# pass it into the metadata used by SQLAlchemy
+metadata = MetaData(naming_convention=naming_convention)
 
 db = SQLAlchemy()
 
@@ -61,6 +74,17 @@ class Account(db.Model):
     parent = db.relationship('Account', remote_side=[id], backref='children')
 
 
+class Product(db.Model):
+    __tablename__ = 'products'
+    id = db.Column(db.Integer, primary_key=True)
+    sku = db.Column(db.String(64), unique=True, nullable=False)
+    name = db.Column(db.String(128), nullable=False)
+    description = db.Column(db.Text)
+    price = db.Column(db.Numeric(12, 2))  # optional retail price
+
+    items = db.relationship('OrderItem', back_populates='product')
+
+
 class Order(db.Model):
     __tablename__ = 'orders'
     id = db.Column(db.Integer, primary_key=True)
@@ -85,6 +109,7 @@ class OrderItem(db.Model):
     __tablename__ = 'order_items'
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=True)
     product_sku = db.Column(db.String(64), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
     unit_price = db.Column(db.Numeric(12, 2), nullable=False)
@@ -93,6 +118,7 @@ class OrderItem(db.Model):
     account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
 
     order = db.relationship('Order', back_populates='items')
+    product = db.relationship('Product', back_populates='items')
     currency = db.relationship('Currency')
     account = db.relationship('Account')
 
