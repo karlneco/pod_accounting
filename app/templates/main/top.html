@@ -4,10 +4,9 @@
 <div class="container mt-5">
   <h1 class="mb-4">POD Accounting Dashboard</h1>
   <div class="d-grid gap-3 d-md-flex justify-content-md-start">
-    <a class="btn btn-primary" href="#">Customers</a>
+    <a class="btn btn-primary" href="{{ url_for('customers.list_customers') }}">Customers</a>
     <a class="btn btn-primary" href="#">Providers</a>
-    <a class="btn btn-primary" href="#">Orders</a>
-    <a class="btn btn-primary" href="#">Costs</a>
+    <a class="btn btn-primary" href="{{ url_for('orders.list_orders') }}">Orders</a>    <a class="btn btn-primary" href="#">Costs</a>
     <a class="btn btn-primary" href="#">Expenses</a>
     <a class="btn btn-secondary" href="#">P&L Report</a>
     <a class="btn btn-secondary" href="#">Balance Sheet</a>

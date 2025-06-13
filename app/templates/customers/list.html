@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">Customers</h1>
+  <div class="mb-3">
+    <a href="{{ url_for('customers.create_customer') }}" class="btn btn-primary">Add New Customer</a>
+    <a href="{{ url_for('customers.import_customers') }}" class="btn btn-secondary">Import Customers</a>
+  </div>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th># Orders</th>
+        <th>Last Order</th>
+        <th>Amount Spent</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for customer, order_count, last_order_date, amount_spent in stats %}
+      <tr>
+        <td>{{ customer.name }}</td>
+        <td>{{ customer.email or '—' }}</td>
+        <td>{{ order_count }}</td>
+        <td>{{ last_order_date or '—' }}</td>
+        <td>${{ "%.2f"|format(amount_spent) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="4">Total Customers</th>
+        <td>{{ total_customers }}</td>
+      </tr>
+      <tr>
+        <th colspan="4">Total Spent</th>
+        <td>${{ "%.2f"|format(total_spent) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endblock %}
