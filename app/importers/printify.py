@@ -47,7 +47,7 @@ def parse(filepath, provider_id):
             )
 
             # 2) Sales Channel Number + Printify Invoice #
-            sales_chan_num = row.get('Sales channel Number', '').strip()
+            sales_chan_num = row.get('Sales channel Number', '').strip().lstrip('#')
             printify_inv_no = row.get('Invoices', '').strip()
 
             # 3) clean amounts

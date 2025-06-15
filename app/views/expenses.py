@@ -100,7 +100,7 @@ def confirm_expenses():
     acct_cogs_tax     = Account.query.filter_by(name='COGS Tax').first()
     # fallback if missing
     acct_map = {
-        'Product Cost':      acct_cogs,
+        'Production Cost':      acct_cogs,
         'Shipping Cost':     acct_cogs_ship,
         'Sales Tax Charged': acct_cogs_tax,
     }
@@ -127,7 +127,7 @@ def confirm_expenses():
                 description        = item['description'],
                 amount             = item['amount'],
                 currency_code      = provider.currency_code,
-                order_id           = None
+                order_id           = inv['invoice_number'],
             )
             db.session.add(ei_line)
 

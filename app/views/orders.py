@@ -117,12 +117,13 @@ def parse_orders_csv(filepath):
 
 def perform_import(filepath):
     """
-    Parses and writes to DB: creates customers, products, orders, order items.
+    Parses and writes to DB: creates customers, products, orders, order items,
+    plus shipping & discount line‐items in dedicated accounts.
     Returns number of orders created.
     """
     customers_to_create, products_to_create, orders_data = parse_orders_csv(filepath)
 
-    # create customers
+    # --- create customers ---
     email_map = {}
     for email, data in customers_to_create.items():
         customer = Customer.query.filter_by(email=email).first()
@@ -132,7 +133,7 @@ def perform_import(filepath):
         email_map[email] = customer
     db.session.commit()
 
-    # create products
+    # --- create products ---
     name_map = {}
     for name, data in products_to_create.items():
         product = Product.query.filter_by(name=name).first()
@@ -142,30 +143,48 @@ def perform_import(filepath):
         name_map[name] = product
     db.session.commit()
 
-    # select default income account for order items
+    # --- look up accounts ---
     income_acc = Account.query.filter_by(type='Income').first()
     default_acc_id = income_acc.id if income_acc else None
 
-    # create orders + items
+    ship_acc = Account.query.filter_by(name='Shipping Charged').first()
+    ship_acc_id = ship_acc.id if ship_acc else default_acc_id
+
+    disc_acc = Account.query.filter_by(name='Discounts Given').first()
+    disc_acc_id = disc_acc.id if disc_acc else default_acc_id
+
     created_count = 0
+
+    # --- create orders + items ---
     for num, od in orders_data.items():
-        cust = Customer.query.filter_by(email=od['customer_email']).first() or email_map.get(od['customer_email'])
+        # customer lookup
+        cust = Customer.query.filter_by(email=od['customer_email']).first() \
+               or email_map.get(od['customer_email'])
+
+        # create Order header
         order = Order(
             order_number=od['order_number'],
             customer_id=cust.id,
             order_date=od['order_date'],
             total_amount=od['order_total'],
-            sub_total=od['sub_total'],
-            taxes=od['taxes'],
-            shipping=od['shipping'],
-            discount_amount=od['discount_amount'],
+            sub_total=od.get('sub_total'),
+            shipping=od.get('shipping'),
+            taxes=od.get('taxes'),
+            discount_amount=od.get('discount_amount'),
             delivery_status=od['delivery_status']
         )
         db.session.add(order)
-        db.session.flush()
+        db.session.flush()  # so order.id is assigned
 
+        # grab a currency_code from the first line (fallback to None)
+        first_currency = None
+        if od['items']:
+            first_currency = od['items'][0].get('currency_code')
+
+        # 1) product line items
         for it in od['items']:
-            prod = Product.query.filter_by(name=it['name']).first() or name_map.get(it['name'])
+            prod = Product.query.filter_by(name=it['name']).first() \
+                   or name_map.get(it['name'])
             subtotal = it['unit_price'] * it['quantity']
             order_item = OrderItem(
                 order_id=order.id,
@@ -174,11 +193,43 @@ def perform_import(filepath):
                 variant=it.get('variant'),
                 quantity=it['quantity'],
                 unit_price=it['unit_price'],
-                currency_code=it['currency_code'],
                 subtotal=subtotal,
+                currency_code=it.get('currency_code') or first_currency,
                 account_id=default_acc_id
             )
             db.session.add(order_item)
+
+        # 2) shipping line (positive amount)
+        ship_amt = od.get('shipping') or Decimal('0')
+        if ship_amt and ship_amt != 0:
+            ship_item = OrderItem(
+                order_id=order.id,
+                product_id=None,
+                product_sku='SHIPPING',
+                variant=None,
+                quantity=1,
+                unit_price=ship_amt,
+                subtotal=ship_amt,
+                currency_code=first_currency,
+                account_id=ship_acc_id
+            )
+            db.session.add(ship_item)
+
+        # 3) discount line (negative amount)
+        disc_amt = od.get('discount_amount') or Decimal('0')
+        if disc_amt and disc_amt != 0:
+            disc_item = OrderItem(
+                order_id=order.id,
+                product_id=None,
+                product_sku='DISCOUNT',
+                variant=None,
+                quantity=1,
+                unit_price=-disc_amt,
+                subtotal=-disc_amt,
+                currency_code=first_currency,
+                account_id=disc_acc_id
+            )
+            db.session.add(disc_item)
 
         created_count += 1
 
