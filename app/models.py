@@ -40,7 +40,9 @@ class Provider(db.Model):
     currency_code = db.Column(db.String(3), db.ForeignKey('currencies.code'), nullable=False)
     notes = db.Column(db.Text)
     importer = db.Column(db.String(128))
+    default_account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=True)
 
+    default_account = db.relationship('Account', foreign_keys=[default_account_id])
     expense_invoices = db.relationship('ExpenseInvoice', back_populates='provider', cascade='all, delete-orphan')
 
 
@@ -67,7 +69,7 @@ class Account(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(128), nullable=False)
     type = db.Column(
-        db.Enum('Income', 'COGS', 'Expense', 'Other', 'Fees', name='account_types'),
+        db.Enum('Income', 'COGS', 'Expense', 'Other', 'Service', 'Fees', name='account_types'),
         nullable=False
     )
     parent_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=True)

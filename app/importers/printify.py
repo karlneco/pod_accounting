@@ -72,4 +72,4 @@ def parse(filepath, provider_id):
                 'items': items
             })
 
-    return invoices
+    return invoices, []

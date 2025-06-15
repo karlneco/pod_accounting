@@ -7,6 +7,7 @@ from flask import (
     Blueprint, render_template, url_for,
     redirect, flash, request, current_app
 )
+
 from ..models import db, ExpenseInvoice, Provider, ExpenseItem, Account, Order
 from ..utils.date_filters import get_date_range
 
@@ -70,7 +71,9 @@ def import_expenses():
         provider = Provider.query.get_or_404(provider_id)
         importer_name = provider.importer or 'generic'  # fallback importer
         module = importlib.import_module(f'app.importers.{importer_name}')
-        invoices = module.parse(file_path, provider_id)
+        invoices, missing = module.parse(file_path, provider_id)
+        for payee in missing:
+            flash(f"No matching provider found for “{payee}”; row skipped.", 'warning')
 
         # mark which invoices have a matching order_number in our DB
         existing_orders = {o.order_number for o in Order.query.with_entities(Order.order_number)}
@@ -92,60 +95,89 @@ def import_expenses():
 @bp.route('/import/confirm', methods=['POST'])
 def confirm_expenses():
     provider_id = request.form.get('provider_id', type=int)
-    file_key    = request.form.get('file_key')
+    file_key = request.form.get('file_key')
     if not provider_id or not file_key:
         flash('Import session invalid. Start again.', 'warning')
         return redirect(url_for('expenses.import_expenses'))
 
     # rebuild filepath
     upload_dir = os.path.join(current_app.root_path, 'uploads')
-    filepath   = os.path.join(upload_dir, file_key)
+    filepath = os.path.join(upload_dir, file_key)
     if not os.path.exists(filepath):
         flash('Upload expired. Please re-upload.', 'warning')
         return redirect(url_for('expenses.import_expenses'))
 
     # find the provider & its chosen importer
-    provider      = Provider.query.get_or_404(provider_id)
+    provider = Provider.query.get_or_404(provider_id)
     importer_name = provider.importer or 'printify'
-    module        = importlib.import_module(f'app.importers.{importer_name}')
-    invoices      = module.parse(filepath, provider_id)
+    module = importlib.import_module(f'app.importers.{importer_name}')
+    invoices = module.parse(filepath, provider_id)
 
     # look up the three COGS accounts
-    acct_cogs         = Account.query.filter_by(name='COGS').first()
-    acct_cogs_ship    = Account.query.filter_by(name='COGS Shipping').first()
-    acct_cogs_tax     = Account.query.filter_by(name='COGS Tax').first()
+    acct_cogs = Account.query.filter_by(name='COGS').first()
+    acct_cogs_ship = Account.query.filter_by(name='COGS Shipping').first()
+    acct_cogs_tax = Account.query.filter_by(name='COGS Tax').first()
+    acct_ad_exp = Account.query.filter_by(name='Advertising Expense').first()
+    acct_gst = Account.query.filter_by(name='GST Paid').first()
+
     # fallback if missing
     acct_map = {
-        'Production Cost':      acct_cogs,
-        'Shipping Cost':     acct_cogs_ship,
+        'Production Cost': acct_cogs,
+        'Shipping Cost': acct_cogs_ship,
         'Sales Tax Charged': acct_cogs_tax,
+        'Daily Ad Spend': acct_ad_exp,
+        'GST': acct_gst,
+
     }
 
     created = 0
     for inv in invoices:
-        # create the invoice header
-        ei = ExpenseInvoice(
-            provider_id      = inv['provider_id'],
-            invoice_date     = inv['invoice_date'],
-            invoice_number   = inv['invoice_number'],
-            supplier_invoice = inv['supplier_invoice'],
-            total_amount     = inv['total_amount']
-        )
-        db.session.add(ei)
-        db.session.flush()  # get ei.id
+        if inv['action'] == 'skip':
+            continue
+        elif inv['action'] == 'update':
+            ei = ExpenseInvoice.query.get(inv['existing_id'])
+            ei.invoice_date = inv['invoice_date']
+            ei.total_amount = inv['total_amount']
+            db.session.add(ei)
+        else:
+            # create the invoice header
+            ei = ExpenseInvoice(
+                provider_id=inv['provider_id'],
+                invoice_date=inv['invoice_date'],
+                invoice_number=inv['invoice_number'],
+                supplier_invoice=inv['supplier_invoice'],
+                total_amount=inv['total_amount']
+            )
+            db.session.add(ei)
+            db.session.flush()  # get ei.id
 
         # create each line-item with its proper account & currency
         for item in inv['items']:
             acct = acct_map.get(item['description'])
-            ei_line = ExpenseItem(
-                expense_invoice_id = ei.id,
-                account_id         = acct.id if acct else None,
-                description        = item['description'],
-                amount             = item['amount'],
-                currency_code      = provider.currency_code,
-                order_id           = inv['invoice_number'],
-            )
-            db.session.add(ei_line)
+            desc = item['description']  # "Daily Ad Spend" or "GST"
+            amt = item['amount']  # Decimal
+
+            # try to find an existing ExpenseItem by invoice_id + description
+            ei = ExpenseItem.query.filter_by(
+                expense_invoice_id=inv['existing_id'],
+                description=desc
+            ).first()
+
+            if ei:
+                # update the amount (and currency, if you want)
+                ei.amount = amt
+                ei.currency_code = provider.currency_code
+                db.session.add(ei)
+            else:
+                ei_line = ExpenseItem(
+                    expense_invoice_id=ei.id,
+                    account_id=acct.id if acct else None,
+                    description=item['description'],
+                    amount=item['amount'],
+                    currency_code=provider.currency_code,
+                    order_id=inv['invoice_number'],
+                )
+                db.session.add(ei_line)
 
         created += 1
 
@@ -154,6 +186,7 @@ def confirm_expenses():
 
     flash(f'Successfully imported {created} expense invoices.', 'success')
     return redirect(url_for('expenses.list_expenses'))
+
 
 @bp.route('/<int:invoice_id>')
 def show_expense(invoice_id):

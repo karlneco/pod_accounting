@@ -2,7 +2,7 @@ import os
 
 from flask import render_template, redirect, url_for, flash, request, Blueprint, current_app
 
-from app.models import Provider, db, Currency
+from app.models import Provider, db, Currency, Account
 
 bp = Blueprint('providers', __name__, template_folder='templates/providers')
 
@@ -18,6 +18,7 @@ def list_providers():
 def create_provider():
     # Load currency choices
     currencies = Currency.query.order_by(Currency.code).all()
+    accounts = Account.query.order_by(Account.name).all()
 
     importers_dir = os.path.join(current_app.root_path, 'importers')
     try:
@@ -38,6 +39,7 @@ def create_provider():
         contact_info = request.form.get('contact_info', '').strip()
         notes = request.form.get('notes', '').strip()
         importer_key = request.form.get('importer') or None
+        default_account_id = request.form.get('default_account_id', type=int)
 
         if not name or not type_ or not currency_code:
             flash('Name, Type, and Currency are required.', 'warning')
@@ -49,7 +51,8 @@ def create_provider():
                 contact_info=contact_info,
                 notes=notes,
                 currencies=currencies,
-                importer=importer_key
+                importer=importer_key,
+                accounts=accounts
             )
 
         if Provider.query.filter_by(name=name).first():
@@ -62,7 +65,8 @@ def create_provider():
             currency_code=currency_code,
             importer=importer_key,  # store filename (without .py) or None
             contact_info=contact_info,
-            notes=notes
+            notes=notes,
+            default_account_id=default_account_id
         )
         db.session.add(p)
         db.session.commit()
@@ -80,7 +84,8 @@ def create_provider():
         contact_info='',
         notes='',
         currencies=currencies,
-        importers=importers
+        importers=importers,
+        accounts=accounts,
     )
 
 

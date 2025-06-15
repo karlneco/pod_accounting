@@ -1,37 +1,105 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-5">
-  <h1>Add New Provider</h1>
-  <form method="post" action="{{ url_for('providers.create_provider') }}">
-    <!-- existing fields… -->
+    <div class="container mt-5">
+        <h1>Add New Provider</h1>
 
-    <div class="mb-3">
-      <label for="currency_code" class="form-label">Currency</label>
-      <select class="form-select" id="currency_code" name="currency_code" required>
-        <!-- … -->
-      </select>
+        <form method="post" action="{{ url_for('providers.create_provider') }}">
+            <div class="mb-3">
+                <label for="name" class="form-label">Provider Name</label>
+                <input type="text"
+                       class="form-control"
+                       id="name"
+                       name="name"
+                       value="{{ name }}"
+                       required>
+            </div>
+
+            <div class="mb-3">
+                <label for="type" class="form-label">Provider Type</label>
+                <select class="form-select"
+                        id="type"
+                        name="type"
+                        required>
+                    <option value="" disabled {% if not type %}selected{% endif %}>Select type</option>
+                    <option value="print" {% if type=='print' %}selected{% endif %}>Print</option>
+                    <option value="software" {% if type=='software' %}selected{% endif %}>Software</option>
+                    <option value="other" {% if type=='other' %}selected{% endif %}>Other</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="currency_code" class="form-label">Currency</label>
+                <select class="form-select"
+                        id="currency_code"
+                        name="currency_code"
+                        required>
+                    <option value="" disabled {% if not currency_code %}selected{% endif %}>Select currency</option>
+                    {% for c in currencies %}
+                        <option value="{{ c.code }}" {% if c.code==currency_code %}selected{% endif %}>
+                            {{ c.code }} – {{ c.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="importer" class="form-label">Importer (optional)</label>
+                <select class="form-select"
+                        id="importer"
+                        name="importer">
+                    <option value="" {% if not importer %}selected{% endif %}>None</option>
+                    {% for imp in importers %}
+                        <option value="{{ imp }}" {% if imp==importer %}selected{% endif %}>
+                            {{ imp }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">
+                    Select a parser file from <code>app/importers/</code>, or leave blank for manual import.
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="default_account_id" class="form-label">Default Account</label>
+                <select class="form-select" id="default_account_id" name="default_account_id">
+                    <option value="" {% if not default_account %}selected{% endif %}>
+                        -- none --
+                    </option>
+                    {% for acct in accounts %}
+                        <option value="{{ acct.id }}"
+                                {% if acct.id==default_account %}selected{% endif %}>
+                            {{ acct.name }} ({{ acct.type }})
+                        </option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">
+                    Used when no specific account mapping can be found.
+                </div>
+            </div>
+
+
+            <div class="mb-3">
+                <label for="contact_info" class="form-label">Contact Info</label>
+                <textarea class="form-control"
+                          id="contact_info"
+                          name="contact_info"
+                          rows="3">{{ contact_info }}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="notes" class="form-label">Notes</label>
+                <textarea class="form-control"
+                          id="notes"
+                          name="notes"
+                          rows="3">{{ notes }}</textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Create Provider</button>
+            <a href="{{ url_for('providers.list_providers') }}"
+               class="btn btn-secondary ms-2">
+                Cancel
+            </a>
+        </form>
     </div>
-
-    <div class="mb-3">
-      <label for="importer" class="form-label">Importer (optional)</label>
-      <select class="form-select" id="importer" name="importer">
-        <option value="" {% if not importer %}selected{% endif %}>None</option>
-        {% for imp in importers %}
-        <option value="{{ imp }}" {% if imp==importer %}selected{% endif %}>
-          {{ imp }}
-        </option>
-        {% endfor %}
-      </select>
-      <div class="form-text">
-        Select a parser file from <code>app/importers/</code>, or leave blank for manual import.
-      </div>
-    </div>
-
-    <!-- remaining fields (contact_info, notes)… -->
-
-    <button type="submit" class="btn btn-primary">Create Provider</button>
-    <a href="{{ url_for('providers.list_providers') }}" class="btn btn-secondary">Cancel</a>
-  </form>
-</div>
 {% endblock %}

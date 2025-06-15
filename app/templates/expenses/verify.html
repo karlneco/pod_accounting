@@ -4,42 +4,62 @@
 <div class="container mt-5">
   <h1 class="mb-4">Verify Expense Import for {{ provider.name }}</h1>
 
+  <div class="alert alert-warning">
+    <small>
+      <span class="badge bg-warning me-2">&nbsp;</span>New invoices<br>
+      <span class="badge bg-danger me-2">&nbsp;</span>Existing invoices to update
+    </small>
+  </div>
+
   <form method="post" action="{{ url_for('expenses.confirm_expenses') }}">
     <input type="hidden" name="provider_id" value="{{ provider.id }}">
     <input type="hidden" name="file_key"      value="{{ file_key }}">
 
     {% for inv in invoices %}
-    <div class="card mb-4 {% if not inv.order_exists %}bg-warning bg-opacity-25{% endif %}">
-        <div class="card-body">
-          <h5 class="card-title">
-            Invoice {{ inv.invoice_number or loop.index }}
-          </h5>
-          <p class="card-text">
-            <strong>Date:</strong> {{ inv.invoice_date }}<br>
-            <strong>Total:</strong>
-            ${{ '{:,.2f}'.format(inv.total_amount) }}
-          </p>
+      {% if inv.action != 'skip' %}
+        <div class="card mb-4
+                    {% if inv.action == 'update' %}bg-danger bg-opacity-25
+                    {% elif inv.action == 'create' %}bg-warning bg-opacity-25
+                    {% endif %}">
+          <div class="card-body">
+            <h5 class="card-title">
+              {% if inv.invoice_number %}
+                {{ inv.invoice_number }}
+              {% else %}
+                Invoice {{ loop.index }}
+              {% endif %}
+              <small class="text-muted ms-2">
+                ({{ inv.action|capitalize }})
+              </small>
+            </h5>
 
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th class="text-end">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in inv['items'] %}
+            <p class="card-text">
+              <strong>Date:</strong> {{ inv.invoice_date }}<br>
+              <strong>Total:</strong>
+              ${{ '{:,.2f}'.format(inv.total_amount) }}
+            </p>
+
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th class="text-end">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in inv['items'] %}
                 <tr>
                   <td>{{ item.description }}</td>
                   <td class="text-end">
                     ${{ '{:,.2f}'.format(item.amount) }}
                   </td>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      {% endif %}
     {% endfor %}
 
     <button type="submit" class="btn btn-success">
