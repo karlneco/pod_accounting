@@ -1,7 +1,7 @@
 import csv
 import os
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from flask import (
@@ -11,6 +11,7 @@ from flask import (
 
 from ..models import db, Order, Customer, OrderItem, Product, Account, ExpenseItem, Provider, ExpenseInvoice
 from ..utils.currency import usd_to_cad
+from ..utils.date_filters import get_date_range
 
 bp = Blueprint('orders', __name__, template_folder='templates/orders')
 
@@ -25,11 +26,15 @@ def parse_orders_csv(filepath):
     """
     existing_customers = {c.email for c in Customer.query.with_entities(Customer.email)}
     existing_products = {p.name for p in Product.query.with_entities(Product.name)}
-    existing_orders = {o.order_number for o in Order.query.with_entities(Order.order_number)}
+    existing_orders = {
+        o.order_number: o.delivery_status
+        for o in Order.query.with_entities(Order.order_number, Order.delivery_status)
+    }
 
     customers_to_create = {}
     products_to_create = {}
     orders_data = {}
+    updates_data = {}
     current_order = None
 
     with open(filepath, 'r', encoding='utf-8-sig') as f:
@@ -42,8 +47,22 @@ def parse_orders_csv(filepath):
             # start of new order
             if order_key and financial_status:
                 num = order_key.lstrip('#')
-                # skip existing orders
+                raw_pm = row.get('Payment Method', '').lower()
+                if 'shopify' in raw_pm:
+                    pm = 'shopify'
+                elif 'paypal' in raw_pm:
+                    pm = 'paypal'
+                else:
+                    pm = None
+
+                new_status = row.get('Fulfillment Status', '').strip() or 'unfulfilled'
+                # existing order → track status change, then skip
                 if num in existing_orders:
+                    if existing_orders[num] != new_status:
+                        updates_data[num] = {
+                            'order_number': num,
+                            'new_status': new_status
+                        }
                     current_order = None
                     continue
 
@@ -62,14 +81,15 @@ def parse_orders_csv(filepath):
                     'order_number': num,
                     'customer_email': row.get('Email', '').strip(),
                     'order_date': order_date,
-                    'delivery_status': row.get('Fulfillment Status', '').strip() or 'pending',
+                    'delivery_status': new_status,
                     'sub_total': Decimal(row.get('Subtotal', '0').strip() or 0),
                     'shipping': Decimal(row.get('Shipping', '0').strip() or 0),
                     'taxes': Decimal(row.get('Taxes', '0').strip() or 0),
                     'order_total': Decimal(row.get('Total', '0').strip() or 0),
                     'discount_amount': Decimal(row.get('Discount Amount', '0').strip() or 0),
                     'items': [],
-                    'order_currency': order_currency
+                    'order_currency': order_currency,
+                    'payment_method': pm
                 }
                 current_order = num
 
@@ -114,7 +134,7 @@ def parse_orders_csv(filepath):
                     'unit_price': price
                 })
 
-    return customers_to_create, products_to_create, orders_data
+    return customers_to_create, products_to_create, orders_data, updates_data
 
 
 def perform_import(filepath):
@@ -123,7 +143,7 @@ def perform_import(filepath):
     plus shipping & discount line‐items in dedicated accounts.
     Returns number of orders created.
     """
-    customers_to_create, products_to_create, orders_data = parse_orders_csv(filepath)
+    customers_to_create, products_to_create, orders_data, updates_data = parse_orders_csv(filepath)
 
     # --- create customers ---
     email_map = {}
@@ -182,7 +202,8 @@ def perform_import(filepath):
             shipping=od.get('shipping'),
             taxes=od.get('taxes'),
             discount_amount=od.get('discount_amount'),
-            delivery_status=od['delivery_status']
+            delivery_status=od['delivery_status'],
+            payment_method=od['payment_method']
         )
         db.session.add(order)
         db.session.flush()  # so order.id is assigned
@@ -242,52 +263,53 @@ def perform_import(filepath):
             )
             db.session.add(disc_item)
 
-        # --- Shopify Payments & Conversion Fees ---
-        # 1) convert order total to CAD
-        cad_total = usd_to_cad(order.total_amount, order.order_date)
+        if order.payment_method == 'shopify':
+            # --- Shopify Payments & Conversion Fees ---
+            # 1) convert order total to CAD
+            cad_total = usd_to_cad(order.total_amount, order.order_date)
 
-        # 2) Shopify Payments fee: 3.5% of CAD + $0.30
-        payment_fee = (cad_total * Decimal('0.035') + Decimal('0.30')) \
-            .quantize(Decimal('0.01'))
+            # 2) Shopify Payments fee: 3.5% of CAD + $0.30
+            payment_fee = (cad_total * Decimal('0.035') + Decimal('0.30')) \
+                .quantize(Decimal('0.01'))
 
-        # 3) Currency Conversion fee: 2% of payment_fee
-        conversion_fee = (cad_total * Decimal('0.02')).quantize(Decimal('0.01'))
+            # 3) Currency Conversion fee: 2% of payment_fee
+            conversion_fee = (cad_total * Decimal('0.02')).quantize(Decimal('0.01'))
 
-        # look up the “Shopify” provider once
-        shopify = Provider.query.filter_by(name='Shopify').first()
-        if shopify and (payment_fee or conversion_fee):
-            total_fees = payment_fee + conversion_fee
+            # look up the “Shopify” provider once
+            shopify = Provider.query.filter_by(name='Shopify').first()
+            if shopify and (payment_fee or conversion_fee):
+                total_fees = payment_fee + conversion_fee
 
-            # create an expense‐invoice for Shopify
-            exp_inv = ExpenseInvoice(
-                provider_id=shopify.id,
-                invoice_date=order.order_date,
-                invoice_number=order.order_number,  # link to the order
-                supplier_invoice=None,  # you can set if available
-                total_amount=total_fees
-            )
-            db.session.add(exp_inv)
-            db.session.flush()  # get exp_inv.id
+                # create an expense‐invoice for Shopify
+                exp_inv = ExpenseInvoice(
+                    provider_id=shopify.id,
+                    invoice_date=order.order_date,
+                    invoice_number=order.order_number,  # link to the order
+                    supplier_invoice=None,  # you can set if available
+                    total_amount=total_fees
+                )
+                db.session.add(exp_inv)
+                db.session.flush()  # get exp_inv.id
 
-            # Merchant Fees line
-            db.session.add(ExpenseItem(
-                expense_invoice_id=exp_inv.id,
-                account_id=merchant_acc_id,  # your “Merchant Fees” account
-                description='Shopify Payments Fee',
-                amount=payment_fee,
-                currency_code=shopify.currency_code,
-                order_id=order.order_number
-            ))
+                # Merchant Fees line
+                db.session.add(ExpenseItem(
+                    expense_invoice_id=exp_inv.id,
+                    account_id=merchant_acc_id,  # your “Merchant Fees” account
+                    description='Shopify Payments Fee',
+                    amount=payment_fee,
+                    currency_code=shopify.currency_code,
+                    order_id=order.order_number
+                ))
 
-            # Currency Conversion Fees line
-            db.session.add(ExpenseItem(
-                expense_invoice_id=exp_inv.id,
-                account_id=conv_acc_id,  # your “Currency Conversion Fees” account
-                description='Currency Conversion Fee',
-                amount=conversion_fee,
-                currency_code=shopify.currency_code,
-                order_id=order.order_number
-            ))
+                # Currency Conversion Fees line
+                db.session.add(ExpenseItem(
+                    expense_invoice_id=exp_inv.id,
+                    account_id=conv_acc_id,  # your “Currency Conversion Fees” account
+                    description='Currency Conversion Fee',
+                    amount=conversion_fee,
+                    currency_code=shopify.currency_code,
+                    order_id=order.order_number
+                ))
 
         created_count += 1
 
@@ -297,7 +319,16 @@ def perform_import(filepath):
 
 @bp.route('/')
 def list_orders():
-    stats = (
+    # read filter params
+    range_key = request.args.get('range', 'this_month')
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+
+    start = datetime.fromisoformat(start_str).date() if start_str else None
+    end = datetime.fromisoformat(end_str).date() if end_str else None
+    start_date, end_date = get_date_range(range_key, start, end)
+
+    q = (
         db.session.query(
             Order.order_number,
             Order.order_date,
@@ -310,9 +341,13 @@ def list_orders():
         .join(Customer)
         .outerjoin(OrderItem)
         .group_by(Order.id)
-        .order_by(Order.order_date.desc())
-        .all()
-    )
+        .order_by(Order.order_date.desc()))
+
+    if start_date and end_date:
+        q = q.filter(Order.order_date.between(start_date, end_date))
+
+    stats = q.all()
+
     total_orders = len(stats)
     total_sub = sum(s.subtotal for s in stats)
     total_shipping = sum(s.shipping for s in stats)
@@ -349,14 +384,15 @@ def import_orders():
         uploaded.save(file_path)
 
         # parse CSV for verification
-        customers, products, orders = parse_orders_csv(file_path)
+        customers, products, new_orders, updates_data = parse_orders_csv(file_path)
 
         return render_template(
             'orders/verify.html',
             file_key=file_key,
             customers=customers,
             products=products,
-            orders=orders
+            new_orders=new_orders,
+            updates_data=updates_data
         )
 
     # GET: show upload form

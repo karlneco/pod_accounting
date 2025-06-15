@@ -105,6 +105,12 @@ class Order(db.Model):
         default='pending'
     )
     notes = db.Column(db.Text)
+    payment_method = db.Column(
+        db.Enum('shopify', 'paypal', 'other', 'na', name='payment_methods'),
+        nullable=False,
+        default='na'
+    )
+
 
     customer = db.relationship('Customer', back_populates='orders')
     items = db.relationship('OrderItem', back_populates='order', cascade='all, delete-orphan')

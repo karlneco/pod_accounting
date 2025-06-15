@@ -7,6 +7,9 @@
     <a href="{{ url_for('orders.create_order') }}" class="btn btn-primary">Add New Order</a>
     <a href="{{ url_for('orders.import_orders') }}" class="btn btn-secondary">Import Orders</a>
   </div>
+
+{% include "_date_filter.html" %}
+
   <table class="table table-striped">
     <thead>
       <tr>

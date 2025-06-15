@@ -1,0 +1,38 @@
+<form class="row gy-2 gx-3 align-items-center mb-4" method="get">
+  <div class="col-auto">
+    <label class="visually-hidden" for="rangeSelect">Range</label>
+    <select id="rangeSelect" name="range" class="form-select">
+      {% set opts = {
+         'today':'Today','yesterday':'Yesterday','this_week':'This Week',
+         'last_week':'Last Week','this_month':'This Month','last_month':'Last Month',
+         'this_quarter':'This Quarter','last_quarter':'Last Quarter',
+         'this_year':'This Year','last_year':'Last Year',
+         'year_to_date':'Year to Date','custom':'Custom'
+       } %}
+      {% for key,label in opts.items() %}
+      <option value="{{ key }}" {% if key==range_key %}selected{% endif %}>
+        {{ label }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-auto custom-dates" {% if range_key!='custom' %}style="display:none"{% endif %}>
+    <input type="date" name="start" value="{{ start_date or '' }}" class="form-control" />
+  </div>
+  <div class="col-auto custom-dates" {% if range_key!='custom' %}style="display:none"{% endif %}>
+    <input type="date" name="end"   value="{{ end_date   or '' }}" class="form-control" />
+  </div>
+
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary">Filter</button>
+  </div>
+</form>
+
+<script>
+  document.getElementById('rangeSelect').addEventListener('change', function(){
+    const show = this.value === 'custom';
+    document.querySelectorAll('.custom-dates')
+      .forEach(el => el.style.display = show ? 'inline-block' : 'none');
+  });
+</script>

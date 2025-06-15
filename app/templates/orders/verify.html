@@ -49,7 +49,7 @@
             </table>
 
             <h2>Orders to Create</h2>
-            {% for order_num, o in orders.items() %}
+            {% for order_num, o in new_orders.items() %}
                 <div class="mb-4">
                     <h5>
                         Order {{ o.order_number }} &ndash; {{ o.customer_email }} &ndash; {{ o.order_date }} &ndash;

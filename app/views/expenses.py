@@ -1,25 +1,41 @@
 import importlib
 import os
 import uuid
+from datetime import datetime
 
 from flask import (
     Blueprint, render_template, url_for,
     redirect, flash, request, current_app
 )
 from ..models import db, ExpenseInvoice, Provider, ExpenseItem, Account, Order
+from ..utils.date_filters import get_date_range
 
 bp = Blueprint('expenses', __name__, template_folder='templates/expenses')
 
 
 @bp.route('/')
 def list_expenses():
+    # read filter params
+    range_key = request.args.get('range', 'this_month')
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+
+    start = datetime.fromisoformat(start_str).date() if start_str else None
+    end = datetime.fromisoformat(end_str).date() if end_str else None
+    start_date, end_date = get_date_range(range_key, start, end)
+
     # pull all expense‐invoices with their provider
-    invoices = (
+    q = (
         ExpenseInvoice.query
         .join(Provider)
         .order_by(ExpenseInvoice.invoice_date.desc())
-        .all()
     )
+
+    if start_date and end_date:
+        q = q.filter(ExpenseInvoice.invoice_date.between(start_date, end_date))
+
+    invoices = q.all()
+
     return render_template('expenses/list.html', invoices=invoices)
 
 
