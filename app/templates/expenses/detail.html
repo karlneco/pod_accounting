@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">
+    Expense {{ invoice.invoice_number or invoice.id }}
+  </h1>
+
+  <dl class="row">
+    <dt class="col-sm-3">Date</dt>
+    <dd class="col-sm-9">{{ invoice.invoice_date }}</dd>
+
+    <dt class="col-sm-3">Supplier</dt>
+    <dd class="col-sm-9">{{ invoice.provider.name }}</dd>
+
+    <dt class="col-sm-3">Invoice #</dt>
+  <dd class="col-sm-9">
+    {% if invoice.invoice_number %}
+      <a href="{{ url_for('orders.show_order', order_number=invoice.invoice_number) }}">
+        {{ invoice.invoice_number }}
+      </a>
+    {% else %}
+      &ndash;
+    {% endif %}
+  </dd>
+
+    <dt class="col-sm-3">Supplier Invoice</dt>
+    <dd class="col-sm-9">{{ invoice.supplier_invoice or '–' }}</dd>
+
+    <dt class="col-sm-3">Total Amount</dt>
+    <dd class="col-sm-9">
+      ${{ '{:,.2f}'.format(invoice.total_amount) }}
+    </dd>
+  </dl>
+
+  <h2 class="mt-4">Line Items</h2>
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Account</th>
+        <th class="text-end">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in invoice.items %}
+      <tr>
+        <td>{{ item.description }}</td>
+        <td>{{ item.account.name if item.account else '-' }}</td>
+        <td class="text-end">
+          ${{ '{:,.2f}'.format(item.amount) }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-secondary mt-3">
+    ← Back to Expenses
+  </a>
+</div>
+{% endblock %}

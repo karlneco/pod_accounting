@@ -138,3 +138,8 @@ def confirm_expenses():
 
     flash(f'Successfully imported {created} expense invoices.', 'success')
     return redirect(url_for('expenses.list_expenses'))
+
+@bp.route('/<int:invoice_id>')
+def show_expense(invoice_id):
+    invoice = ExpenseInvoice.query.get_or_404(invoice_id)
+    return render_template('expenses/detail.html', invoice=invoice)

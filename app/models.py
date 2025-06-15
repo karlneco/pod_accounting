@@ -67,7 +67,7 @@ class Account(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(128), nullable=False)
     type = db.Column(
-        db.Enum('Income', 'COGS', 'Expense', 'Other', name='account_types'),
+        db.Enum('Income', 'COGS', 'Expense', 'Other', 'Fees', name='account_types'),
         nullable=False
     )
     parent_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=True)

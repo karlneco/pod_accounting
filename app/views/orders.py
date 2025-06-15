@@ -1,14 +1,16 @@
+import csv
 import os
 import uuid
-import csv
 from datetime import date
 from decimal import Decimal
+
 from flask import (
     Blueprint, render_template, url_for, redirect,
     flash, request, current_app
 )
-from sqlalchemy import func
-from ..models import db, Order, Customer, OrderItem, Product, Account
+
+from ..models import db, Order, Customer, OrderItem, Product, Account, ExpenseItem, Provider, ExpenseInvoice
+from ..utils.currency import usd_to_cad
 
 bp = Blueprint('orders', __name__, template_folder='templates/orders')
 
@@ -153,7 +155,16 @@ def perform_import(filepath):
     disc_acc = Account.query.filter_by(name='Discounts Given').first()
     disc_acc_id = disc_acc.id if disc_acc else default_acc_id
 
+    merchant_acc = Account.query.filter_by(name='Merchant Fees').first()
+    merchant_acc_id = merchant_acc.id if merchant_acc else default_acc_id
+
+    conv_acc = Account.query.filter_by(name='Currency Conversion Fees').first()
+    conv_acc_id = conv_acc.id if conv_acc else default_acc_id
+
     created_count = 0
+
+    # pick a currency code for fees (we store fees in CAD)
+    fee_currency = 'CAD'
 
     # --- create orders + items ---
     for num, od in orders_data.items():
@@ -230,6 +241,53 @@ def perform_import(filepath):
                 account_id=disc_acc_id
             )
             db.session.add(disc_item)
+
+        # --- Shopify Payments & Conversion Fees ---
+        # 1) convert order total to CAD
+        cad_total = usd_to_cad(order.total_amount, order.order_date)
+
+        # 2) Shopify Payments fee: 3.5% of CAD + $0.30
+        payment_fee = (cad_total * Decimal('0.035') + Decimal('0.30')) \
+            .quantize(Decimal('0.01'))
+
+        # 3) Currency Conversion fee: 2% of payment_fee
+        conversion_fee = (cad_total * Decimal('0.02')).quantize(Decimal('0.01'))
+
+        # look up the “Shopify” provider once
+        shopify = Provider.query.filter_by(name='Shopify').first()
+        if shopify and (payment_fee or conversion_fee):
+            total_fees = payment_fee + conversion_fee
+
+            # create an expense‐invoice for Shopify
+            exp_inv = ExpenseInvoice(
+                provider_id=shopify.id,
+                invoice_date=order.order_date,
+                invoice_number=order.order_number,  # link to the order
+                supplier_invoice=None,  # you can set if available
+                total_amount=total_fees
+            )
+            db.session.add(exp_inv)
+            db.session.flush()  # get exp_inv.id
+
+            # Merchant Fees line
+            db.session.add(ExpenseItem(
+                expense_invoice_id=exp_inv.id,
+                account_id=merchant_acc_id,  # your “Merchant Fees” account
+                description='Shopify Payments Fee',
+                amount=payment_fee,
+                currency_code=shopify.currency_code,
+                order_id=order.order_number
+            ))
+
+            # Currency Conversion Fees line
+            db.session.add(ExpenseItem(
+                expense_invoice_id=exp_inv.id,
+                account_id=conv_acc_id,  # your “Currency Conversion Fees” account
+                description='Currency Conversion Fee',
+                amount=conversion_fee,
+                currency_code=shopify.currency_code,
+                order_id=order.order_number
+            ))
 
         created_count += 1
 
@@ -330,8 +388,44 @@ def show_order(order_number):
     # fetch the order (404 if not found)
     order = Order.query.filter_by(order_number=order_number).first_or_404()
 
-    # order.items is already available via the relationship
+    # Fetch any expense‐items linked to this order
+    expense_items = ExpenseItem.query.filter_by(order_id=order.order_number).all()
+
+    # 3) Determine order currency from first line‐item (fallback to USD)
+    first_item = order.items[0] if order.items else None
+    order_currency = getattr(first_item, 'currency_code', 'USD')
+
+    cogs_usd = Decimal('0')
+    fees_cad = Decimal('0')
+
+    # 5) Define which accounts count as COGS vs. Fees
+    cogs_names = {'COGS', 'COGS Shipping', 'COGS Tax'}
+    fee_names = {'Merchant Fees', 'Currency Conversion Fees'}
+
+    # 6) Sum up each expense‐item into COGS or Fees, converting to CAD
+    for exp in expense_items:
+        amt = exp.amount or Decimal('0')
+        acct_name = exp.account.name if exp.account else None
+        if acct_name in cogs_names:
+            cogs_usd += amt
+        elif acct_name in fee_names:
+            fees_cad += amt
+
+    # compute COGS, Profit and Margin
+    revenue_cad = usd_to_cad(order.total_amount, order.order_date)
+    profit_cad = revenue_cad - usd_to_cad(cogs_usd, order.order_date) - fees_cad
+
+    if order.total_amount and order.total_amount != 0:
+        margin = (profit_cad / revenue_cad * Decimal('100')).quantize(Decimal('0.01'))
+    else:
+        margin = None
+
     return render_template(
         'orders/detail.html',
-        order=order
+        order=order,
+        expense_items=expense_items,
+        cogs_usd=cogs_usd,
+        fees_cad=fees_cad,
+        profit_cad=profit_cad,
+        margin=margin
     )

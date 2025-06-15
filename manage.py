@@ -1,7 +1,11 @@
 #!/usr/bin/env python
+from dotenv import load_dotenv
+
 from app import create_app, db
 from flask.cli import with_appcontext
 import click
+
+load_dotenv()
 
 app = create_app()
 

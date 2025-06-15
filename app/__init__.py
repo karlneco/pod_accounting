@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_migrate import Migrate
 from .models import db
+from .utils.currency import usd_to_cad
 from .views import customers, providers, orders, costs, ads, expenses, main, products, accounts
 
 
@@ -22,5 +23,7 @@ def create_app(config_class="config.Config"):
     app.register_blueprint(expenses.bp,    url_prefix="/expenses")
     app.register_blueprint(products.bp,    url_prefix="/products")
     app.register_blueprint(accounts.bp,    url_prefix="/accounts")
+
+    app.add_template_global(usd_to_cad, name='usd_to_cad')
 
     return app
