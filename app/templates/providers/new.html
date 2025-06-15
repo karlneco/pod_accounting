@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1>Add New Provider</h1>
+  <form method="post" action="{{ url_for('providers.create_provider') }}">
+    <!-- existing fields… -->
+
+    <div class="mb-3">
+      <label for="currency_code" class="form-label">Currency</label>
+      <select class="form-select" id="currency_code" name="currency_code" required>
+        <!-- … -->
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="importer" class="form-label">Importer (optional)</label>
+      <select class="form-select" id="importer" name="importer">
+        <option value="" {% if not importer %}selected{% endif %}>None</option>
+        {% for imp in importers %}
+        <option value="{{ imp }}" {% if imp==importer %}selected{% endif %}>
+          {{ imp }}
+        </option>
+        {% endfor %}
+      </select>
+      <div class="form-text">
+        Select a parser file from <code>app/importers/</code>, or leave blank for manual import.
+      </div>
+    </div>
+
+    <!-- remaining fields (contact_info, notes)… -->
+
+    <button type="submit" class="btn btn-primary">Create Provider</button>
+    <a href="{{ url_for('providers.list_providers') }}" class="btn btn-secondary">Cancel</a>
+  </form>
+</div>
+{% endblock %}

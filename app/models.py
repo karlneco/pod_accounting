@@ -33,11 +33,13 @@ class Provider(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(128), nullable=False)
     type = db.Column(
-        db.Enum('print', 'software', 'other', name='provider_types'),
+        db.Enum('print', 'software', 'service', 'other', name='provider_types'),
         nullable=False
     )
     contact_info = db.Column(db.Text)
+    currency_code = db.Column(db.String(3), db.ForeignKey('currencies.code'), nullable=False)
     notes = db.Column(db.Text)
+    importer = db.Column(db.String(128))
 
     expense_invoices = db.relationship('ExpenseInvoice', back_populates='provider', cascade='all, delete-orphan')
 
@@ -77,7 +79,6 @@ class Account(db.Model):
 class Product(db.Model):
     __tablename__ = 'products'
     id = db.Column(db.Integer, primary_key=True)
-    sku = db.Column(db.String(64), unique=True, nullable=False)
     name = db.Column(db.String(128), nullable=False)
     description = db.Column(db.Text)
     price = db.Column(db.Numeric(12, 2))  # optional retail price
@@ -99,7 +100,7 @@ class Order(db.Model):
     discount_code = db.Column(db.String(64), nullable=True)
     discount_percent = db.Column(db.Numeric(5, 2), default=0)  # 0–100%
     delivery_status = db.Column(
-        db.Enum('pending', 'processing', 'shipped', 'delivered', 'cancelled', name='delivery_statuses'),
+        db.Enum('pending', 'unfulfilled', 'processing', 'fulfilled', 'shipped', 'delivered', 'cancelled', name='delivery_statuses'),
         nullable=False,
         default='pending'
     )
@@ -134,6 +135,7 @@ class ExpenseInvoice(db.Model):
     provider_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=False)
     invoice_date = db.Column(db.Date, nullable=False)
     invoice_number = db.Column(db.String(64))
+    supplier_invoice = db.Column(db.String(64))
     total_amount = db.Column(db.Numeric(12, 2), nullable=False)
     notes = db.Column(db.Text)
 

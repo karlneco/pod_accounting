@@ -1,25 +1,201 @@
 import os
 import uuid
-
-from flask import Blueprint, render_template, url_for, redirect, flash, request, current_app
-from sqlalchemy import func
-from io import TextIOWrapper
 import csv
+from datetime import date
 from decimal import Decimal
-from ..models import db, Order, Customer, OrderItem, Product
+from flask import (
+    Blueprint, render_template, url_for, redirect,
+    flash, request, current_app
+)
+from sqlalchemy import func
+from ..models import db, Order, Customer, OrderItem, Product, Account
 
 bp = Blueprint('orders', __name__, template_folder='templates/orders')
 
 
+def parse_orders_csv(filepath):
+    """
+    Parses the CSV at filepath and returns three dicts:
+      - customers_to_create: {email: {name,email,phone,address}}
+      - products_to_create:  {product_name: {name,price}}
+      - orders_data:         {order_number: {order fields + items list}}
+    Skips any existing orders (by order_number).
+    """
+    existing_customers = {c.email for c in Customer.query.with_entities(Customer.email)}
+    existing_products = {p.name for p in Product.query.with_entities(Product.name)}
+    existing_orders = {o.order_number for o in Order.query.with_entities(Order.order_number)}
+
+    customers_to_create = {}
+    products_to_create = {}
+    orders_data = {}
+    current_order = None
+
+    with open(filepath, 'r', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            order_key = row.get('Name', '').strip()
+            financial_status = row.get('Financial Status', '').strip()
+            order_currency = row.get('Currency', '').strip()
+
+            # start of new order
+            if order_key and financial_status:
+                num = order_key.lstrip('#')
+                # skip existing orders
+                if num in existing_orders:
+                    current_order = None
+                    continue
+
+                created_at = row.get('Created at', '').strip()
+                if created_at:
+                    date_str = created_at.split(' ')[0]
+                    try:
+                        order_date = date.fromisoformat(date_str)
+                    except ValueError:
+                        order_date = None
+                else:
+                    order_date = None
+
+                # initialize new order
+                orders_data[num] = {
+                    'order_number': num,
+                    'customer_email': row.get('Email', '').strip(),
+                    'order_date': order_date,
+                    'delivery_status': row.get('Fulfillment Status', '').strip() or 'pending',
+                    'sub_total': Decimal(row.get('Subtotal', '0').strip() or 0),
+                    'shipping': Decimal(row.get('Shipping', '0').strip() or 0),
+                    'taxes': Decimal(row.get('Taxes', '0').strip() or 0),
+                    'order_total': Decimal(row.get('Total', '0').strip() or 0),
+                    'discount_amount': Decimal(row.get('Discount Amount', '0').strip() or 0),
+                    'items': [],
+                    'order_currency': order_currency
+                }
+                current_order = num
+
+                # queue new customer
+                email = row.get('Email', '').strip()
+                if email and email not in existing_customers and email not in customers_to_create:
+                    customers_to_create[email] = {
+                        'name': row.get('Billing Name', '').strip(),
+                        'email': email,
+                        'phone': row.get('Billing Phone', '').strip() or row.get('Phone', '').strip(),
+                        'address': ', '.join(
+                            p for p in [
+                                row.get('Billing Address1', '').strip(),
+                                row.get('Billing City', '').strip(),
+                                row.get('Billing Province', '').strip(),
+                                row.get('Billing Zip', '').strip(),
+                                row.get('Billing Country', '').strip()
+                            ] if p
+                        )
+                    }
+
+            # line items for the current order
+            name = row.get('Lineitem name', '').strip()
+            if name and current_order:
+                parts = name.rsplit(' - ', 1)
+                base = parts[0]
+                var = parts[1] if len(parts) > 1 else None
+                price = Decimal(row.get('Lineitem price', '0').strip() or 0)
+                qty = int(row.get('Lineitem quantity', '0').strip() or 0)
+                sku = row.get('Lineitem sku', '').strip()
+
+                # queue new product
+                if base not in existing_products and base not in products_to_create:
+                    products_to_create[base] = {'name': base, 'price': price}
+
+                orders_data[current_order]['items'].append({
+                    'name': base,
+                    'variant': var,
+                    'product_sku': sku,
+                    'quantity': qty,
+                    'currency_code': orders_data[current_order]['order_currency'],
+                    'unit_price': price
+                })
+
+    return customers_to_create, products_to_create, orders_data
+
+
+def perform_import(filepath):
+    """
+    Parses and writes to DB: creates customers, products, orders, order items.
+    Returns number of orders created.
+    """
+    customers_to_create, products_to_create, orders_data = parse_orders_csv(filepath)
+
+    # create customers
+    email_map = {}
+    for email, data in customers_to_create.items():
+        customer = Customer.query.filter_by(email=email).first()
+        if not customer:
+            customer = Customer(**data)
+            db.session.add(customer)
+        email_map[email] = customer
+    db.session.commit()
+
+    # create products
+    name_map = {}
+    for name, data in products_to_create.items():
+        product = Product.query.filter_by(name=name).first()
+        if not product:
+            product = Product(name=data['name'], price=data['price'])
+            db.session.add(product)
+        name_map[name] = product
+    db.session.commit()
+
+    # select default income account for order items
+    income_acc = Account.query.filter_by(type='Income').first()
+    default_acc_id = income_acc.id if income_acc else None
+
+    # create orders + items
+    created_count = 0
+    for num, od in orders_data.items():
+        cust = Customer.query.filter_by(email=od['customer_email']).first() or email_map.get(od['customer_email'])
+        order = Order(
+            order_number=od['order_number'],
+            customer_id=cust.id,
+            order_date=od['order_date'],
+            total_amount=od['order_total'],
+            sub_total=od['sub_total'],
+            taxes=od['taxes'],
+            shipping=od['shipping'],
+            discount_amount=od['discount_amount'],
+            delivery_status=od['delivery_status']
+        )
+        db.session.add(order)
+        db.session.flush()
+
+        for it in od['items']:
+            prod = Product.query.filter_by(name=it['name']).first() or name_map.get(it['name'])
+            subtotal = it['unit_price'] * it['quantity']
+            order_item = OrderItem(
+                order_id=order.id,
+                product_id=prod.id if prod else None,
+                product_sku=it['product_sku'],
+                variant=it.get('variant'),
+                quantity=it['quantity'],
+                unit_price=it['unit_price'],
+                currency_code=it['currency_code'],
+                subtotal=subtotal,
+                account_id=default_acc_id
+            )
+            db.session.add(order_item)
+
+        created_count += 1
+
+    db.session.commit()
+    return created_count
+
+
 @bp.route('/')
 def list_orders():
-    # Aggregate order stats
     stats = (
         db.session.query(
             Order.order_number,
             Order.order_date,
             Customer.name.label('customer_name'),
-            func.coalesce(func.sum(OrderItem.subtotal), 0).label('order_total'),
+            Order.sub_total.label('subtotal'),
+            Order.shipping.label('shipping'),
+            Order.total_amount.label('order_total'),
             Order.delivery_status
         )
         .join(Customer)
@@ -28,13 +204,15 @@ def list_orders():
         .order_by(Order.order_date.desc())
         .all()
     )
-
     total_orders = len(stats)
+    total_sub = sum(s.subtotal for s in stats)
+    total_shipping = sum(s.shipping for s in stats)
     total_value = sum(s.order_total for s in stats)
-
     return render_template(
         'orders/list.html',
         stats=stats,
+        total_sub=total_sub,
+        total_shipping=total_shipping,
         total_orders=total_orders,
         total_value=total_value
     )
@@ -42,7 +220,6 @@ def list_orders():
 
 @bp.route('/new')
 def create_order():
-    # Placeholder for order creation form
     flash('Order creation not implemented yet', 'info')
     return redirect(url_for('orders.list_orders'))
 
@@ -50,141 +227,27 @@ def create_order():
 @bp.route('/import', methods=['GET', 'POST'])
 def import_orders():
     if request.method == 'POST':
-        file = request.files.get('file')
-        if not file:
+        uploaded = request.files.get('file')
+        if not uploaded:
             flash('No file selected', 'warning')
             return redirect(url_for('orders.import_orders'))
 
+        # save the uploaded file
         upload_dir = os.path.join(current_app.root_path, 'uploads')
         os.makedirs(upload_dir, exist_ok=True)
-
-        # generate a unique filename
         file_key = f"{uuid.uuid4().hex}.csv"
         file_path = os.path.join(upload_dir, file_key)
+        uploaded.save(file_path)
 
-        # persist the upload
-        file.save(file_path)
+        # parse CSV for verification
+        customers, products, orders = parse_orders_csv(file_path)
 
-        # Load existing DB state to avoid duplicates
-        existing_customers = {c.email for c in Customer.query.with_entities(Customer.email).all()}
-        existing_products = {p.name for p in Product.query.with_entities(Product.name).all()}
-        existing_orders = {o.order_number: o for o in Order.query.with_entities(Order).all()}
-
-        # Prepare data structures for new entries only
-        customers_to_create = {}
-        products_to_create = {}
-        order_currencies = {}
-        orders_data = {}
-        current_order = None
-
-        # Parse CSV
-        stream = TextIOWrapper(file.stream, encoding='utf-8-sig')
-        reader = csv.DictReader(stream)
-        for row in reader:
-            order_num_raw = row.get('Name', '').strip()
-            customer_email = row.get('Email', '').strip()
-            financial_status = row.get('Financial Status', '').strip()
-            order_currency = row.get('Currency').strip() or '???'
-
-            # Identify new order row by presence of financial status
-            if order_num_raw and financial_status:
-                order_number = order_num_raw.lstrip('#')
-                delivery_status = row.get('Fulfillment Status', '').strip() or 'pending'
-                order_currencies[order_number] = order_currency
-
-                # If order exists, update status and skip import
-                if order_number in existing_orders:
-                    existing_order = existing_orders[order_number]
-                    if existing_order.delivery_status != delivery_status:
-                        existing_order.delivery_status = delivery_status
-                        db.session.add(existing_order)
-                    # Skip further processing for this order
-                    current_order = None
-                    continue
-
-                # Else, queue new order for preview
-                order_date = row.get('Created at', '').split(' ')[0]
-                total_str = row.get('Total', '').strip() or '0'
-                order_discount_amount_str = row.get('Discount Amount').strip() or 0
-                order_sub_total_str = row.get('Subtotal').strip() or 0
-                order_shipping_str = row.get('Shipping').strip() or 0
-                order_taxes_str = row.get('Taxes').strip() or 0
-                order_total = Decimal(total_str)
-                order_discount_amount = Decimal(order_discount_amount_str)
-                order_sub_total = Decimal(order_sub_total_str)
-                order_shipping = Decimal(order_shipping_str)
-                order_taxes = Decimal(order_taxes_str)
-
-                # Queue customer creation if missing
-                if customer_email and customer_email not in existing_customers and customer_email not in customers_to_create:
-                    c_name = row.get('Billing Name', '').strip()
-                    c_phone = row.get('Billing Phone', '').strip() or row.get('Phone', '').strip()
-                    addr_parts = [
-                        row.get('Billing Address1', '').strip(),
-                        row.get('Billing Address2', '').strip(),
-                        row.get('Billing City', '').strip(),
-                        row.get('Billing Province', '').strip(),
-                        row.get('Billing Zip', '').strip(),
-                        row.get('Billing Country', '').strip()
-                    ]
-                    c_address = ', '.join(p for p in addr_parts if p)
-                    customers_to_create[customer_email] = {
-                        'name': c_name,
-                        'email': customer_email,
-                        'phone': c_phone,
-                        'address': c_address
-                    }
-
-                # Initialize order entry for preview
-                orders_data[order_number] = {
-                    'order_number': order_number,
-                    'customer_email': customer_email,
-                    'order_date': order_date,
-                    'delivery_status': delivery_status,
-                    'discount_amount': order_discount_amount,
-                    'sub_total': order_sub_total,
-                    'shipping': order_shipping,
-                    'taxes': order_taxes,
-                    'order_total': order_total,
-                    'items': []
-                }
-                current_order = order_number
-
-            # Handle line items for new orders
-            line_name = row.get('Lineitem name', '').strip()
-            if line_name and current_order:
-                parts = line_name.rsplit(' - ', 1)
-                base_name = parts[0]
-                variant = parts[1] if len(parts) > 1 else ''
-                price_str = row.get('Lineitem price', '').strip() or '0'
-                sku = row.get('Lineitem sku', '').strip() or '0'
-                quantity_str = row.get('Lineitem quantity', '').strip() or '0'
-                price = Decimal(price_str)
-                quantity = int(quantity_str)
-
-
-                # Queue product creation if missing
-                if base_name and base_name not in existing_products and base_name not in products_to_create:
-                    products_to_create[base_name] = {'name': base_name, 'price': price}
-
-                orders_data[current_order]['items'].append({
-                    'name': base_name,
-                    'product_sku': sku,
-                    'variant': variant,
-                    'quantity': quantity,
-                    'unit_price': price,
-                    'order_currency': order_currencies[current_order],
-                })
-
-        # Commit any status updates
-        db.session.commit()
-
-        # Render verify page for new entries only
         return render_template(
             'orders/verify.html',
-            customers=customers_to_create,
-            products=products_to_create,
-            orders=orders_data
+            file_key=file_key,
+            customers=customers,
+            products=products,
+            orders=orders
         )
 
     # GET: show upload form
@@ -198,22 +261,26 @@ def confirm_import():
         flash('No import in progress.', 'warning')
         return redirect(url_for('orders.import_orders'))
 
-    # Reconstruct the file path
-    import os
-    upload_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'uploads'))
-    filepath   = os.path.join(upload_dir, file_key)
-    if not os.path.exists(filepath):
+    upload_dir = os.path.join(current_app.root_path, 'uploads')
+    file_path = os.path.join(upload_dir, file_key)
+    if not os.path.exists(file_path):
         flash('Import session expired. Please re-upload.', 'warning')
         return redirect(url_for('orders.import_orders'))
 
-    # Now re-run your “perform_import” logic here:
-    #   - parse the CSV again
-    #   - create customers, products, orders & items
-    #   - commit to DB
-    count = perform_import(filepath)   # you’ll need to extract and reuse your import code
+    created = perform_import(file_path)
+    os.remove(file_path)
 
-    # Clean up the temp file
-    os.remove(filepath)
-
-    flash(f'Successfully imported {count} new orders!', 'success')
+    flash(f'Successfully imported {created} new orders!', 'success')
     return redirect(url_for('orders.list_orders'))
+
+
+@bp.route('/<order_number>')
+def show_order(order_number):
+    # fetch the order (404 if not found)
+    order = Order.query.filter_by(order_number=order_number).first_or_404()
+
+    # order.items is already available via the relationship
+    return render_template(
+        'orders/detail.html',
+        order=order
+    )

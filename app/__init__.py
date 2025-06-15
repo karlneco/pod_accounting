@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_migrate import Migrate
 from .models import db
-from .views import customers, providers, orders, costs, ads, expenses, main, products
+from .views import customers, providers, orders, costs, ads, expenses, main, products, accounts
 
 
 def create_app(config_class="config.Config"):
@@ -21,5 +21,6 @@ def create_app(config_class="config.Config"):
     app.register_blueprint(ads.bp,         url_prefix="/ads")
     app.register_blueprint(expenses.bp,    url_prefix="/expenses")
     app.register_blueprint(products.bp,    url_prefix="/products")
+    app.register_blueprint(accounts.bp,    url_prefix="/accounts")
 
     return app

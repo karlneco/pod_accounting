@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">Chart of Accounts</h1>
+
+  <div class="mb-3">
+    <a href="{{ url_for('accounts.create_account') }}" class="btn btn-primary">
+      Add New Account
+    </a>
+  </div>
+
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for acct in accounts %}
+      <tr>
+        <td>{{ acct.id }}</td>
+        <td>{{ acct.name }}</td>
+        <td>{{ acct.type }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+</div>
+{% endblock %}

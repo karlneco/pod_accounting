@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">Import Expenses</h1>
+
+  <form method="post"
+        action="{{ url_for('expenses.import_expenses') }}"
+        enctype="multipart/form-data">
+    <div class="mb-3">
+      <label for="provider_id" class="form-label">Supplier</label>
+      <select class="form-select" id="provider_id" name="provider_id" required>
+        <option value="" disabled selected>Select Supplier...</option>
+        {% for provider in providers %}
+        <option value="{{ provider.id }}">{{ provider.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="file" class="form-label">CSV File</label>
+      <input class="form-control"
+             type="file"
+             id="file"
+             name="file"
+             accept=".csv"
+             required>
+    </div>
+
+    <button id="submit-btn" type="submit" class="btn btn-primary">
+      Upload &amp; Verify
+    </button>
+    <a href="{{ url_for('expenses.list_expenses') }}"
+       class="btn btn-secondary ms-2">
+      Cancel
+    </a>
+  </form>
+</div>
+
+<script>
+  // disable button on submit to prevent double‐posts
+  document.querySelector('form').addEventListener('submit', function(){
+    document.getElementById('submit-btn').disabled = true;
+  });
+</script>
+{% endblock %}

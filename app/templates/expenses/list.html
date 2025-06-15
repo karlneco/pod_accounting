@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">Expenses</h1>
+
+  <div class="mb-3">
+    <a href="{{ url_for('expenses.create_expense') }}" class="btn btn-primary">
+      Add New Expense
+    </a>
+    <a href="{{ url_for('expenses.import_expenses') }}" class="btn btn-secondary">
+      Import Expenses
+    </a>
+  </div>
+
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Provider</th>
+        <th class="text-end">Total Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td>{{ inv.invoice_date }}</td>
+        <td>{{ inv.provider.name }}</td>
+        <td class="text-end">
+          ${{ '{:,.2f}'.format(inv.total_amount) }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

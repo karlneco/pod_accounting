@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">Verify Expense Import for {{ provider.name }}</h1>
+
+  <form method="post" action="{{ url_for('expenses.confirm_expenses') }}">
+    <input type="hidden" name="provider_id" value="{{ provider.id }}">
+    <input type="hidden" name="file_key"      value="{{ file_key }}">
+
+    {% for inv in invoices %}
+    <div class="card mb-4 {% if not inv.order_exists %}bg-warning bg-opacity-25{% endif %}">
+        <div class="card-body">
+          <h5 class="card-title">
+            Invoice {{ inv.invoice_number or loop.index }}
+          </h5>
+          <p class="card-text">
+            <strong>Date:</strong> {{ inv.invoice_date }}<br>
+            <strong>Total:</strong>
+            ${{ '{:,.2f}'.format(inv.total_amount) }}
+          </p>
+
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th class="text-end">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in inv['items'] %}
+                <tr>
+                  <td>{{ item.description }}</td>
+                  <td class="text-end">
+                    ${{ '{:,.2f}'.format(item.amount) }}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-success">
+      Confirm Import
+    </button>
+    <a href="{{ url_for('expenses.import_expenses') }}"
+       class="btn btn-secondary ms-2">
+      Cancel
+    </a>
+  </form>
+</div>
+{% endblock %}
