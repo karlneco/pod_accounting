@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from flask import (
     Blueprint, render_template, url_for,
-    redirect, flash, request, current_app
+    redirect, flash, request, current_app, jsonify
 )
 
 from ..models import db, ExpenseInvoice, Provider, ExpenseItem, Account, Order
@@ -72,7 +72,6 @@ def create_expense():
         invoice_date_str = request.form.get('invoice_date','').strip()
         invoice_number   = request.form.get('invoice_number','').strip() or None
         supplier_invoice = request.form.get('supplier_invoice','').strip() or None
-        total_amount_str = request.form.get('total_amount','0').strip()
 
         # Validation
         errors = []
@@ -83,11 +82,6 @@ def create_expense():
         except:
             invoice_date = None
             errors.append("Invalid date")
-        try:
-            total_amount = Decimal(total_amount_str)
-        except:
-            total_amount = None
-            errors.append("Invalid total amount")
 
         # Parse line-items
         line_items = []
@@ -123,7 +117,6 @@ def create_expense():
                   'invoice_date':invoice_date_str,
                   'invoice_number':invoice_number,
                   'supplier_invoice':supplier_invoice,
-                  'total_amount':total_amount_str
                 },
                 line_items=line_items
             )
@@ -134,7 +127,7 @@ def create_expense():
             invoice_date=invoice_date,
             invoice_number=invoice_number,
             supplier_invoice=supplier_invoice,
-            total_amount=total_amount
+            total_amount=0
         )
         db.session.add(ei)
         db.session.flush()
@@ -149,6 +142,18 @@ def create_expense():
                 currency_code=Provider.query.get(provider_id).currency_code
             ))
         db.session.commit()
+
+        subtotal = sum(amt for _, _, amt in line_items)
+        # if CAD, add GST
+        prov = Provider.query.get(provider_id)
+        if prov.currency_code == 'CAD':
+            gst = (subtotal * Decimal('0.05')).quantize(Decimal('0.01'))
+        else:
+            gst = Decimal('0')
+
+        ei.total_amount = subtotal + gst
+        db.session.update(ei)
+        db.session.flush()
 
         flash("Expense created.", 'success')
         return redirect(url_for('expenses.show_expense', invoice_id=ei.id))
@@ -298,3 +303,27 @@ def confirm_expenses():
 def show_expense(invoice_id):
     invoice = ExpenseInvoice.query.get_or_404(invoice_id)
     return render_template('expenses/detail.html', invoice=invoice)
+
+
+@bp.route('/provider/<int:provider_id>/last_invoice_items')
+def last_invoice_items(provider_id):
+    # grab the very last invoice for that provider
+    last = (
+        ExpenseInvoice.query
+        .filter_by(provider_id=provider_id)
+        .order_by(ExpenseInvoice.invoice_date.desc())
+        .first()
+    )
+    if not last:
+        return jsonify(items=[], currency_code=None)
+
+    items = [
+        {
+            'description': li.description,
+            'account_id':  li.account_id,
+            'amount':      str(li.amount)
+        }
+        for li in last.items
+    ]
+    prov = Provider.query.get(provider_id)
+    return jsonify(items=items, currency_code=prov.currency_code)
