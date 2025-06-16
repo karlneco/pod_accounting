@@ -4,6 +4,22 @@
 <div class="container mt-5">
   <h1 class="mb-4">Import Expenses</h1>
 
+  <div class="mb-3">
+    <span class="me-2">Quick select:</span>
+    {% for name in ['Printify', 'Meta'] %}
+      {% set qp = providers | selectattr('name', 'equalto', name) | first %}
+      {% if qp %}
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary select-provider-btn me-2"
+          data-provider-id="{{ qp.id }}"
+        >
+          {{ qp.name }}
+        </button>
+      {% endif %}
+    {% endfor %}
+  </div>
+
   <form method="post"
         action="{{ url_for('expenses.import_expenses') }}"
         enctype="multipart/form-data">
@@ -42,5 +58,13 @@
   document.querySelector('form').addEventListener('submit', function(){
     document.getElementById('submit-btn').disabled = true;
   });
+
+    // When you click a quick-select button, set the dropdown value
+  document.querySelectorAll('.select-provider-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('provider_id').value = btn.dataset.providerId;
+    });
+  });
+
 </script>
 {% endblock %}

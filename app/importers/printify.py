@@ -1,11 +1,9 @@
-# app/importers/printify.py
-
 import csv
 import re
 from datetime import datetime
 from decimal import Decimal
 
-from app.models import Account
+from app.models import Account, ExpenseInvoice
 
 # helper to pull the numeric part out of strings like “9.73 USD” or “1,234.56 USD”
 _amount_re = re.compile(r'-?\d[\d,]*\.?\d*')
@@ -33,13 +31,23 @@ def parse(filepath, provider_id):
       - supplier_invoice (Printify’s own Invoice #)
       - total_amount
       - items: [
-          {'description': str, 'amount': Decimal},
+          {'description': str, 'amount': Decimal, 'account_id': int, 'currency_code': str},
           ...
         ]
+      - action (‘create’, ‘update’, or ‘skip’)
+      - existing_id (ExpenseInvoice.id if updating)
+    Returns (invoices, missing).
     """
     invoices = []
+    missing = []  # no missing-payee logic here, but keep interface
 
-    # Lookup accounts
+    # preload existing invoices for this provider
+    existing = {
+        inv.invoice_number: inv
+        for inv in ExpenseInvoice.query.filter_by(provider_id=provider_id).all()
+    }
+
+    # lookup the 3 COGS accounts
     product_sale_acc_id = Account.query.filter_by(name='COGS').first().id
     cust_shipping_acc_id = Account.query.filter_by(name='COGS Shipping').first().id
     sales_tax_charged_acc_id = Account.query.filter_by(name='COGS Tax').first().id
@@ -49,10 +57,10 @@ def parse(filepath, provider_id):
         for row in reader:
             # 1) invoice date
             created = row.get('Date created', '').strip()
-            inv_date = (
-                datetime.fromisoformat(created).date()
-                if created else None
-            )
+            try:
+                inv_date = datetime.fromisoformat(created).date()
+            except Exception:
+                inv_date = None
 
             # 2) Sales Channel Number + Printify Invoice #
             sales_chan_num = row.get('Sales channel Number', '').strip().lstrip('#')
@@ -66,10 +74,34 @@ def parse(filepath, provider_id):
 
             # 4) build exactly three line-items
             items = [
-                {'description': 'Production Cost', 'amount': product_cost, 'account_id': product_sale_acc_id, 'currency_code': 'USD'},
-                {'description': 'Shipping Cost', 'amount': ship_cost, 'account_id': cust_shipping_acc_id, 'currency_code': 'USD'},
-                {'description': 'Sales Tax Charged', 'amount': tax_cost, 'account_id': sales_tax_charged_acc_id, 'currency_code': 'USD'},
+                {
+                    'description': 'Production Cost',
+                    'amount': product_cost,
+                    'account_id': product_sale_acc_id,
+                    'currency_code': 'USD'
+                },
+                {
+                    'description': 'Shipping Cost',
+                    'amount': ship_cost,
+                    'account_id': cust_shipping_acc_id,
+                    'currency_code': 'USD'
+                },
+                {
+                    'description': 'Sales Tax Charged',
+                    'amount': tax_cost,
+                    'account_id': sales_tax_charged_acc_id,
+                    'currency_code': 'USD'
+                },
             ]
+
+            # 5) decide action based on existing invoice
+            exist = existing.get(sales_chan_num)
+            if exist:
+                action = 'skip' if exist.total_amount == total_cost else 'update'
+                existing_id = exist.id
+            else:
+                action = 'create'
+                existing_id = None
 
             invoices.append({
                 'provider_id': provider_id,
@@ -78,7 +110,8 @@ def parse(filepath, provider_id):
                 'supplier_invoice': printify_inv_no,
                 'total_amount': total_cost,
                 'items': items,
-                'action': 'create'
+                'action': action,
+                'existing_id': existing_id
             })
 
-    return invoices, []
+    return invoices, missing
