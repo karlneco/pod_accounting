@@ -66,9 +66,9 @@ def parse(filepath, provider_id):
 
             # 4) build exactly three line-items
             items = [
-                {'description': 'Production Cost', 'amount': product_cost, 'account_id': product_sale_acc_id},
-                {'description': 'Shipping Cost', 'amount': ship_cost, 'account_id': cust_shipping_acc_id},
-                {'description': 'Sales Tax Charged', 'amount': tax_cost, 'account_id': sales_tax_charged_acc_id},
+                {'description': 'Production Cost', 'amount': product_cost, 'account_id': product_sale_acc_id, 'currency_code': 'USD'},
+                {'description': 'Shipping Cost', 'amount': ship_cost, 'account_id': cust_shipping_acc_id, 'currency_code': 'USD'},
+                {'description': 'Sales Tax Charged', 'amount': tax_cost, 'account_id': sales_tax_charged_acc_id, 'currency_code': 'USD'},
             ]
 
             invoices.append({
@@ -77,7 +77,8 @@ def parse(filepath, provider_id):
                 'invoice_number': sales_chan_num,
                 'supplier_invoice': printify_inv_no,
                 'total_amount': total_cost,
-                'items': items
+                'items': items,
+                'action': 'create'
             })
 
     return invoices, []

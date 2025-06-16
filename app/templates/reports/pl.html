@@ -72,11 +72,11 @@
       {% for exp in expenses %}
       <tr>
         <td>
-            <a href="{{ url_for('expenses.list_expenses',
-                                 account_id=exp.id,
-                                 range=range_key,
-                                 start=start_date,
-                                 end=end_date) }}">
+<a href="{{ url_for('accounts.account_transactions',
+                     account_id=exp.id,
+                     range=range_key,
+                     start=start_date,
+                     end=end_date) }}">
               {{ exp.name }}
             </a>
         </td>

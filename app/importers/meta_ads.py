@@ -68,8 +68,8 @@ def parse(filepath, provider_id):
                 'supplier_invoice': None,
                 'total_amount':    total,
                 'items': [
-                    {'description': 'Daily Ad Spend', 'amount': net, 'account_id': default_ad_account},
-                    {'description': 'GST',             'amount': gst, 'account_id': gst_acct_id},
+                    {'description': 'Daily Ad Spend', 'amount': net, 'account_id': default_ad_account, 'currency_code': 'CAD'},
+                    {'description': 'GST',             'amount': gst, 'account_id': gst_acct_id, 'currency_code': 'CAD'},
                 ],
                 'action':          action,
                 'existing_id':     existing.id if existing else None

@@ -262,24 +262,25 @@ def confirm_expenses():
             desc = item['description']  # "Daily Ad Spend" or "GST"
             amt = item['amount']  # Decimal
 
-            # try to find an existing ExpenseItem by invoice_id + description
-            existing_invoice = ExpenseItem.query.filter_by(
-                expense_invoice_id=inv['existing_id'],
-                description=desc
-            ).first()
+            if inv['action'] == 'update':
+                # try to find an existing ExpenseItem by invoice_id + description
+                existing_invoice = ExpenseItem.query.filter_by(
+                    expense_invoice_id=inv['existing_id'],
+                    description=desc
+                ).first()
 
-            if existing_invoice:
-                # update the amount (and currency, if you want)
-                existing_invoice.amount = amt
-                existing_invoice.currency_code = provider.currency_code
-                db.session.add(existing_invoice)
+                if existing_invoice:
+                    # update the amount (and currency, if you want)
+                    existing_invoice.amount = amt
+                    existing_invoice.currency_code = provider.currency_code
+                    db.session.add(existing_invoice)
             else:
                 ei_line = ExpenseItem(
                     expense_invoice_id=ei.id,
                     account_id=acct,
                     description=item['description'],
                     amount=item['amount'],
-                    currency_code=provider.currency_code,
+                    currency_code=item['currency_code'],
                     order_id=inv['invoice_number'],
                 )
                 db.session.add(ei_line)
