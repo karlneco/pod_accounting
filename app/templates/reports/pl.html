@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1>Profit and Loss</h1>
+  <p class="text-muted">
+    {{ start_date or '…' }} – {{ end_date or '…' }}
+  </p>
+
+  {% include "_date_filter.html" %}
+
+  <table class="table">
+    <!-- Income section -->
+    <thead class="table-light">
+      <tr><th colspan="2">Income</th></tr>
+      <tr>
+        <th>Account</th>
+        <th class="text-end">Amount (CAD)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for acc, total in income %}
+      <tr>
+        <td>{{ acc }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(total) }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="table-light">
+        <th>Total for Income</th>
+        <th class="text-end">${{ '{:,.2f}'.format(total_income) }}</th>
+      </tr>
+    </tbody>
+
+    <!-- COGS section -->
+    <thead class="table-light mt-4">
+      <tr><th colspan="2">Cost of Goods Sold</th></tr>
+      <tr>
+        <th>Account</th>
+        <th class="text-end">Amount (CAD)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for acc, total in cogs %}
+      <tr>
+        <td>{{ acc }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(total) }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="table-light">
+        <th>Total for COGS</th>
+        <th class="text-end">${{ '{:,.2f}'.format(total_cogs) }}</th>
+      </tr>
+    </tbody>
+
+    <!-- Gross Profit -->
+    <tbody>
+      <tr class="table-secondary">
+        <th>Gross Profit</th>
+        <th class="text-end">${{ '{:,.2f}'.format(gross_profit) }}</th>
+      </tr>
+    </tbody>
+
+    <!-- Expenses section -->
+    <thead class="table-light mt-4">
+      <tr><th colspan="2">Expenses</th></tr>
+      <tr>
+        <th>Account</th>
+        <th class="text-end">Amount (CAD)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for exp in expenses %}
+      <tr>
+        <td>
+            <a href="{{ url_for('expenses.list_expenses',
+                                 account_id=exp.id,
+                                 range=range_key,
+                                 start=start_date,
+                                 end=end_date) }}">
+              {{ exp.name }}
+            </a>
+        </td>
+        <td class="text-end">
+          ${{ '{:,.2f}'.format(exp.total) }}
+        </td>
+      </tr>
+      {% endfor %}
+      <tr class="table-light">
+        <th>Total for Expenses</th>
+        <th class="text-end">${{ '{:,.2f}'.format(total_expenses) }}</th>
+      </tr>
+    </tbody>
+
+    <!-- Net Profit -->
+    <tbody>
+      <tr class="table-dark text-white">
+        <th>Net Profit</th>
+        <th class="text-end">${{ '{:,.2f}'.format(net_profit) }}</th>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}

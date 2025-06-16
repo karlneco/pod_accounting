@@ -5,6 +5,8 @@ import re
 from datetime import datetime
 from decimal import Decimal
 
+from app.models import Account
+
 # helper to pull the numeric part out of strings like “9.73 USD” or “1,234.56 USD”
 _amount_re = re.compile(r'-?\d[\d,]*\.?\d*')
 
@@ -36,6 +38,12 @@ def parse(filepath, provider_id):
         ]
     """
     invoices = []
+
+    # Lookup accounts
+    product_sale_acc_id = Account.query.filter_by(name='COGS').first().id
+    cust_shipping_acc_id = Account.query.filter_by(name='COGS Shipping').first().id
+    sales_tax_charged_acc_id = Account.query.filter_by(name='COGS Tax').first().id
+
     with open(filepath, newline='', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -58,9 +66,9 @@ def parse(filepath, provider_id):
 
             # 4) build exactly three line-items
             items = [
-                {'description': 'Production Cost', 'amount': product_cost},
-                {'description': 'Shipping Cost', 'amount': ship_cost},
-                {'description': 'Sales Tax Charged', 'amount': tax_cost},
+                {'description': 'Production Cost', 'amount': product_cost, 'account_id': product_sale_acc_id},
+                {'description': 'Shipping Cost', 'amount': ship_cost, 'account_id': cust_shipping_acc_id},
+                {'description': 'Sales Tax Charged', 'amount': tax_cost, 'account_id': sales_tax_charged_acc_id},
             ]
 
             invoices.append({

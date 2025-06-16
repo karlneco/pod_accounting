@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+  <h1>{{ invoice and 'Edit Expense #'~invoice.id or 'Add New Expense' }}</h1>
+
+  <form method="post">
+    <!-- Header fields -->
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label class="form-label">Provider</label>
+        <select name="provider_id" class="form-select" required>
+          <option value="">Select…</option>
+          {% for p in providers %}
+          <option value="{{ p.id }}"
+            {% if form.provider_id == p.id %}selected{% endif %}>
+            {{ p.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 mb-3">
+        <label class="form-label">Date</label>
+        <input type="date"
+               name="invoice_date"
+               class="form-control"
+               value="{{ form.invoice_date }}"
+               required>
+      </div>
+      <div class="col-md-4 mb-3">
+        <label class="form-label">Total Amount</label>
+        <input type="number" step="0.01"
+               name="total_amount"
+               class="form-control text-end"
+               value="{{ form.total_amount }}"
+               required>
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <label class="form-label">Invoice #</label>
+        <input type="text"
+               name="invoice_number"
+               class="form-control"
+               value="{{ form.invoice_number }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Supplier Inv #</label>
+        <input type="text"
+               name="supplier_invoice"
+               class="form-control"
+               value="{{ form.supplier_invoice }}">
+      </div>
+    </div>
+
+    <!-- Line items -->
+    <h4>Line Items</h4>
+    <table class="table table-bordered" id="items-table">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Account</th>
+          <th class="text-end">Amount</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="items-body">
+        {% for item in line_items %}
+          {% set idx = loop.index0 %}
+          <tr>
+            <td>
+              <input name="items-{{ idx }}-description"
+                     class="form-control"
+                     value="{{ item[0] }}" />
+            </td>
+            <td>
+              <select name="items-{{ idx }}-account_id"
+                      class="form-select">
+                <option value="">--</option>
+                {% for a in accounts %}
+                <option value="{{ a.id }}"
+                  {% if item[1] == a.id %}selected{% endif %}>
+                  {{ a.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td>
+              <input name="items-{{ idx }}-amount"
+                     class="form-control text-end"
+                     value="{{ item[2] }}" />
+            </td>
+            <td>
+              <button type="button"
+                      class="btn btn-sm btn-danger remove-item">
+                ×
+              </button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <button type="button"
+            id="add-item"
+            class="btn btn-sm btn-outline-primary mb-3">
+      + Add Item
+    </button>
+
+    <div>
+      <button type="submit" class="btn btn-primary">
+        {{ invoice and 'Save' or 'Create' }}
+      </button>
+      <a href="{{ url_for('expenses.list_expenses') }}"
+         class="btn btn-secondary ms-2">
+        Cancel
+      </a>
+    </div>
+  </form>
+</div>
+
+<script>
+  let idx = {{ line_items|length }};
+  document.getElementById('add-item').addEventListener('click', ()=>{
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>
+        <input name="items-${idx}-description"
+               class="form-control" />
+      </td>
+      <td>
+        <select name="items-${idx}-account_id"
+                class="form-select">
+          <option value="">--</option>
+          {% for a in accounts %}
+          <option value="{{ a.id }}">{{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      <td>
+        <input name="items-${idx}-amount"
+               class="form-control text-end" />
+      </td>
+      <td>
+        <button type="button"
+                class="btn btn-sm btn-danger remove-item">
+          ×
+        </button>
+      </td>`;
+    document.getElementById('items-body').appendChild(row);
+    idx++;
+  });
+
+  document.getElementById('items-body').addEventListener('click', e=>{
+    if(e.target.classList.contains('remove-item')){
+      e.target.closest('tr').remove();
+    }
+  });
+</script>
+{% endblock %}

@@ -6,13 +6,19 @@ from decimal import Decimal, ROUND_HALF_UP
 from ..models import Provider, Account, ExpenseInvoice
 
 
-def parse(filepath, provider_id):
+def parse(filepath: str, provider_id: int):
     """
-    Parse a generic expenses CSV into invoice dicts with:
-      - provider_id, invoice_date, invoice_number, supplier_invoice, total_amount
-      - items: list of {description, amount, account_id, currency_code}
-      - action: 'create' | 'update' | 'skip'
-      - existing_id: ExpenseInvoice.id if updating
+    Returns:
+      - invoices: a list of dicts, **each** containing the keys
+          • provider_id
+          • invoice_date
+          • invoice_number
+          • supplier_invoice
+          • total_amount
+          • items       – a list of `{description, amount}` dicts
+          • action      – one of 'create', 'update', 'skip'
+          • existing_id – the ExpenseInvoice.id if updating, else None
+      - missing: a list of “payee” (or other) strings your code skipped
     """
     invoices = []
     missing = set()
@@ -72,10 +78,21 @@ def parse(filepath, provider_id):
             # currency: CAD if there is a tax, else USD
             currency = 'CAD' if tax != 0 else 'USD'
 
-            # 5) lookup the expense account by Category
+            # 5) resolve expense account: provider default → category name → Other Expenses
             category = row.get('Category', '').strip()
-            acct = Account.query.filter_by(name=category).first()
-            acct_id = acct.id if acct else None
+
+            if prov.default_account_id:
+                # 5a) use the provider’s configured default account
+                acct_id = prov.default_account_id
+            else:
+                # 5b) try matching the Category text
+                acct_obj = Account.query.filter_by(name=category).first()
+                if acct_obj:
+                    acct_id = acct_obj.id
+                else:
+                    # 5c) fallback to the “Other Expenses” account
+                    other = Account.query.filter_by(name='Other Expenses').first()
+                    acct_id = other.id if other else None
 
             # 6) lookup GST account
             gst_acct = Account.query.filter_by(name='GST Paid').first()

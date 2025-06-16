@@ -3,7 +3,8 @@
 import csv
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
-from ..models import db, ExpenseInvoice, ExpenseItem
+from ..models import db, ExpenseInvoice, ExpenseItem, Account, Provider
+
 
 def parse(filepath, provider_id):
     """
@@ -16,6 +17,13 @@ def parse(filepath, provider_id):
     invoices = []
     with open(filepath, newline='', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
+
+        # 6) lookup GST account
+        gst_acct = Account.query.filter_by(name='GST Paid').first()
+        gst_acct_id = gst_acct.id if gst_acct else None
+        provider = Provider.query.get_or_404(provider_id)
+        default_ad_account = provider.default_account_id
+
         for row in reader:
             # --- build the invoice dict (date, number, items) ---
             day = row.get('Day','').strip()
@@ -60,8 +68,8 @@ def parse(filepath, provider_id):
                 'supplier_invoice': None,
                 'total_amount':    total,
                 'items': [
-                    {'description': 'Daily Ad Spend', 'amount': net},
-                    {'description': 'GST',             'amount': gst}
+                    {'description': 'Daily Ad Spend', 'amount': net, 'account_id': default_ad_account},
+                    {'description': 'GST',             'amount': gst, 'account_id': gst_acct_id},
                 ],
                 'action':          action,
                 'existing_id':     existing.id if existing else None
