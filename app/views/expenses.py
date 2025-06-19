@@ -113,13 +113,12 @@ def create_expense():
         if gst and gst != Decimal('0'):
             gst_acc = Account.query.filter_by(name='GST Paid').first()
             db.session.add(ExpenseItem(
-                expense_invoice_id = ei.id,
-                account_id         = gst_acc.id if gst_acc else None,
-                description        = 'GST',
-                amount             = gst,
-                currency_code      = prov.currency_code
+                expense_invoice_id=ei.id,
+                account_id=gst_acc.id if gst_acc else None,
+                description='GST',
+                amount=gst,
+                currency_code=prov.currency_code
             ))
-
 
         ei.total_amount = subtotal + gst
         db.session.commit()
@@ -324,9 +323,9 @@ def show_expense(invoice_id):
 
 @bp.route('/templates/create', methods=['POST'])
 def create_template():
-    name = request.form.get('template_name','').strip()
+    name = request.form.get('template_name', '').strip()
     provider_id = request.form.get('provider_id', type=int)
-    raw = request.form.get('template_items','[]')
+    raw = request.form.get('template_items', '[]')
     try:
         data = json.loads(raw)
     except:
@@ -338,17 +337,16 @@ def create_template():
     db.session.flush()
     for idx, it in enumerate(data):
         ti = ExpenseTemplateItem(
-          template_id=tmpl.id,
-          description=it['description'],
-          account_id=int(it['account_id']),
-          amount=Decimal(it['amount']),
-          order=idx
+            template_id=tmpl.id,
+            description=it['description'],
+            account_id=int(it['account_id']),
+            amount=Decimal(it['amount']),
+            order=idx
         )
         db.session.add(ti)
     db.session.commit()
     flash(f'Template "{name}" saved.', 'success')
     return redirect(request.referrer)
-
 
 
 # JSON End points ------------------8<---------------------------------
@@ -388,4 +386,3 @@ def get_template(template_id):
         for it in tmpl.items
     ]
     return jsonify(items=items, provider_id=tmpl.provider_id)
-

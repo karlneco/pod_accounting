@@ -1,179 +1,180 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container mt-5">
-  <h1>
-    {% if invoice %}
-      Edit Expense #{{ invoice.id }}
-    {% else %}
-      Add New Expense
-    {% endif %}
-  </h1>
+    <div class="container mt-5">
+        <h1>
+            {% if invoice %}
+                Edit Expense #{{ invoice.id }}
+            {% else %}
+                Add New Expense
+            {% endif %}
+        </h1>
 
-<div class="row mb-3">
-  <div class="col-md-8">
-    <label class="form-label">Apply Template</label>
-    <select id="template_select" class="form-select">
-      <option value="">-- choose saved template --</option>
-      {% for t in templates %}
-      <option value="{{ t.id }}">{{ t.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-4 d-flex align-items-end">
-    <button id="save-template" type="button" class="btn btn-outline-secondary w-100">
-      Save as Template
-    </button>
-  </div>
-</div>
+        <div class="row mb-3">
+            <div class="col-md-8">
+                <label class="form-label">Apply Template</label>
+                <select id="template_select" class="form-select">
+                    <option value="">-- choose saved template --</option>
+                    {% for t in templates %}
+                        <option value="{{ t.id }}">{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button id="save-template" type="button" class="btn btn-outline-secondary w-100">
+                    Save as Template
+                </button>
+            </div>
+        </div>
 
 
-  <form method="post">
-    <!-- ► Supplier + Date -->
-    <div class="row mb-3">
-      <div class="col-md-4">
-        <label class="form-label">Provider</label>
-        <select id="provider_id" name="provider_id"
-                class="form-select" required>
-          <option value="">Select…</option>
-          {% for p in providers %}
-          <option value="{{ p.id }}"
-                  data-currency="{{ p.currency_code }}"
-            {% if form.provider_id == p.id %}selected{% endif %}>
-            {{ p.name }}
-          </option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Date</label>
-        <input type="date" name="invoice_date"
-               class="form-control"
-               value="{{ form.invoice_date }}"
-               required>
-      </div>
-    </div>
+        <form method="post">
+            <!-- ► Supplier + Date -->
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Provider</label>
+                    <select id="provider_id" name="provider_id"
+                            class="form-select" required>
+                        <option value="">Select…</option>
+                        {% for p in providers %}
+                            <option value="{{ p.id }}"
+                                    data-currency="{{ p.currency_code }}"
+                                    {% if form.provider_id == p.id %}selected{% endif %}>
+                                {{ p.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Date</label>
+                    <input type="date" name="invoice_date"
+                           class="form-control"
+                           value="{{ form.invoice_date }}"
+                           required>
+                </div>
+            </div>
 
-    <!-- ► Invoice #'s -->
-    <div class="row mb-3">
-      <div class="col-md-6">
-        <label class="form-label">Invoice #</label>
-        <input type="text" name="invoice_number"
-               class="form-control"
-               value="{{ form.invoice_number }}">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Supplier Inv #</label>
-        <input type="text" name="supplier_invoice"
-               class="form-control"
-               value="{{ form.supplier_invoice }}">
-      </div>
-    </div>
+            <!-- ► Invoice #'s -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Invoice #</label>
+                    <input type="text" name="invoice_number"
+                           class="form-control"
+                           value="{{ form.invoice_number }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Supplier Inv #</label>
+                    <input type="text" name="supplier_invoice"
+                           class="form-control"
+                           value="{{ form.supplier_invoice }}">
+                </div>
+            </div>
 
-    <!-- ► Line Items -->
-    <h4>Line Items</h4>
-    <table class="table table-bordered" id="items-table">
-      <thead>
-        <tr>
-          <th>Description</th>
-          <th>Account</th>
-          <th class="text-end">Amount</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="items-body">
-        {% for item in line_items %}
-          {% set idx = loop.index0 %}
-          <tr>
-            <td>
-              <input name="items-{{idx}}-description"
-                     class="form-control"
-                     value="{{ item[0] }}" />
-            </td>
-            <td>
-              <select name="items-{{idx}}-account_id"
-                      class="form-select">
-                <option value="">--</option>
-                {% for a in accounts %}
-                <option value="{{ a.id }}"
-                  {% if item[1] == a.id %}selected{% endif %}>
-                  {{ a.name }}
-                </option>
+            <!-- ► Line Items -->
+            <h4>Line Items</h4>
+            <table class="table table-bordered" id="items-table">
+                <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Account</th>
+                    <th class="text-end">Amount</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="items-body">
+                {% for item in line_items %}
+                    {% set idx = loop.index0 %}
+                    <tr>
+                        <td>
+                            <input name="items-{{ idx }}-description"
+                                   class="form-control"
+                                   value="{{ item[0] }}"/>
+                        </td>
+                        <td>
+                            <select name="items-{{ idx }}-account_id"
+                                    class="form-select">
+                                <option value="">--</option>
+                                {% for a in accounts %}
+                                    <option value="{{ a.id }}"
+                                            {% if item[1] == a.id %}selected{% endif %}>
+                                        {{ a.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input name="items-{{ idx }}-amount"
+                                   class="form-control text-end amount-input"
+                                   value="{{ item[2] }}"/>
+                        </td>
+                        <td>
+                            <button type="button"
+                                    class="btn btn-sm btn-danger remove-item">×
+                            </button>
+                        </td>
+                    </tr>
                 {% endfor %}
-              </select>
-            </td>
-            <td>
-              <input name="items-{{idx}}-amount"
-                     class="form-control text-end amount-input"
-                     value="{{ item[2] }}" />
-            </td>
-            <td>
-              <button type="button"
-                      class="btn btn-sm btn-danger remove-item">×</button>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+                </tbody>
+            </table>
 
-    <button type="button" id="add-item"
-            class="btn btn-sm btn-outline-primary mb-3">
-      + Add Item
-    </button>
+            <button type="button" id="add-item"
+                    class="btn btn-sm btn-outline-primary mb-3">
+                + Add Item
+            </button>
 
-    <!-- ► Live Totals -->
-    <div class="mt-4">
-      <p><strong>Subtotal:</strong>
-         <span id="subtotal">$0.00</span></p>
-      <p id="gst-row" style="display:none">
-         <strong>GST (5%):</strong>
-         <span id="gst-amount">$0.00</span>
-      </p>
-      <p><strong>Total:</strong>
-         <span id="grand-total">$0.00</span>
-      </p>
+            <!-- ► Live Totals -->
+            <div class="mt-4">
+                <p><strong>Subtotal:</strong>
+                    <span id="subtotal">$0.00</span></p>
+                <p id="gst-row" style="display:none">
+                    <strong>GST (5%):</strong>
+                    <span id="gst-amount">$0.00</span>
+                </p>
+                <p><strong>Total:</strong>
+                    <span id="grand-total">$0.00</span>
+                </p>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                {% if invoice %}Save Changes{% else %}Create Expense{% endif %}
+            </button>
+            <a href="{{ url_for('expenses.list_expenses') }}"
+               class="btn btn-secondary ms-2">Cancel</a>
+        </form>
     </div>
 
-    <button type="submit" class="btn btn-primary">
-        {% if invoice %}Save Changes{% else %}Create Expense{% endif %}
-    </button>
-    <a href="{{ url_for('expenses.list_expenses') }}"
-       class="btn btn-secondary ms-2">Cancel</a>
-  </form>
-</div>
+    <script>
+        // === helper to recalc all totals ===
+        function recalcTotals() {
+            let subtotal = 0;
+            document.querySelectorAll('.amount-input').forEach(inp => {
+                const v = parseFloat(inp.value) || 0;
+                subtotal += v;
+            });
+            document.getElementById('subtotal').textContent =
+                '$' + subtotal.toFixed(2);
 
-<script>
-  // === helper to recalc all totals ===
-  function recalcTotals() {
-    let subtotal = 0;
-    document.querySelectorAll('.amount-input').forEach(inp => {
-      const v = parseFloat(inp.value) || 0;
-      subtotal += v;
-    });
-    document.getElementById('subtotal').textContent =
-      '$' + subtotal.toFixed(2);
+            // supplier currency
+            const sel = document.getElementById('provider_id');
+            const curr = sel.selectedOptions[0]?.dataset.currency;
+            let gst = 0;
+            if (curr === 'CAD') {
+                gst = +(subtotal * 0.05).toFixed(2);
+                document.getElementById('gst-row').style.display = '';
+                document.getElementById('gst-amount').textContent =
+                    '$' + gst.toFixed(2);
+            } else {
+                document.getElementById('gst-row').style.display = 'none';
+            }
+            const total = subtotal + gst;
+            document.getElementById('grand-total').textContent =
+                '$' + total.toFixed(2);
+        }
 
-    // supplier currency
-    const sel = document.getElementById('provider_id');
-    const curr = sel.selectedOptions[0]?.dataset.currency;
-    let gst = 0;
-    if (curr === 'CAD') {
-      gst = +(subtotal * 0.05).toFixed(2);
-      document.getElementById('gst-row').style.display = '';
-      document.getElementById('gst-amount').textContent =
-        '$' + gst.toFixed(2);
-    } else {
-      document.getElementById('gst-row').style.display = 'none';
-    }
-    const total = subtotal + gst;
-    document.getElementById('grand-total').textContent =
-      '$' + total.toFixed(2);
-  }
-
-  // === add/remove row logic ===
-  let idx = {{ line_items|length }};
-  document.getElementById('add-item').addEventListener('click', () => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
+        // === add/remove row logic ===
+        let idx = {{ line_items|length }};
+        document.getElementById('add-item').addEventListener('click', () => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
       <td><input name="items-${idx}-description" class="form-control" /></td>
       <td>
         <select name="items-${idx}-account_id" class="form-select">
@@ -190,37 +191,37 @@
       <td>
         <button type="button" class="btn btn-sm btn-danger remove-item">×</button>
       </td>`;
-    document.getElementById('items-body').appendChild(tr);
-    idx++;
-    recalcTotals();
-  });
-  document.getElementById('items-body').addEventListener('click', e => {
-    if (e.target.matches('.remove-item')) {
-      e.target.closest('tr').remove();
-      recalcTotals();
-    }
-  });
+            document.getElementById('items-body').appendChild(tr);
+            idx++;
+            recalcTotals();
+        });
+        document.getElementById('items-body').addEventListener('click', e => {
+            if (e.target.matches('.remove-item')) {
+                e.target.closest('tr').remove();
+                recalcTotals();
+            }
+        });
 
-  // === live recalc when amounts change ===
-  document.getElementById('items-body').addEventListener('input', e => {
-    if (e.target.matches('.amount-input')) recalcTotals();
-  });
+        // === live recalc when amounts change ===
+        document.getElementById('items-body').addEventListener('input', e => {
+            if (e.target.matches('.amount-input')) recalcTotals();
+        });
 
-  // === on provider change: load last invoice items ===
-  document.getElementById('provider_id').addEventListener('change', async function(){
-    const pid = this.value;
-    if (!pid) return;
-    const resp = await fetch(`/expenses/provider/${pid}/last_invoice_items`);
-    const {items, currency_code} = await resp.json();
+        // === on provider change: load last invoice items ===
+        document.getElementById('provider_id').addEventListener('change', async function () {
+            const pid = this.value;
+            if (!pid) return;
+            const resp = await fetch(`/expenses/provider/${pid}/last_invoice_items`);
+            const {items, currency_code} = await resp.json();
 
-    // clear existing rows
-    document.getElementById('items-body').innerHTML = '';
-    idx = 0;
+            // clear existing rows
+            document.getElementById('items-body').innerHTML = '';
+            idx = 0;
 
-    // populate each old item
-    for (const it of items) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
+            // populate each old item
+            for (const it of items) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
         <td><input name="items-${idx}-description"
                    class="form-control"
                    value="${it.description}" /></td>
@@ -230,7 +231,7 @@
             <option value="">--</option>
             {% for a in accounts %}
             <option value="{{a.id}}"
-              ${it.account_id=={{a.id}}?'selected':''}>
+              ${it.account_id == {{a.id}} ? 'selected' : ''}>
               {{a.name}}
             </option>
             {% endfor %}
@@ -245,32 +246,32 @@
           <button type="button"
                   class="btn btn-sm btn-danger remove-item">×</button>
         </td>`;
-      document.getElementById('items-body').appendChild(tr);
-      idx++;
-    }
+                document.getElementById('items-body').appendChild(tr);
+                idx++;
+            }
 
-    // re‐calc totals (including GST if CAD)
-    recalcTotals();
-  });
+            // re‐calc totals (including GST if CAD)
+            recalcTotals();
+        });
 
-    // 1) Load a template’s items into the form
-  document.getElementById('template_select').addEventListener('change', async function(){
-    const tid = this.value;
-    if(!tid) return;
-    const resp = await fetch(`/expenses/templates/${tid}`);
-    const {items, provider_id} = await resp.json();
+        // 1) Load a template’s items into the form
+        document.getElementById('template_select').addEventListener('change', async function () {
+            const tid = this.value;
+            if (!tid) return;
+            const resp = await fetch(`/expenses/templates/${tid}`);
+            const {items, provider_id} = await resp.json();
 
-    if (provider_id) {
-        document.getElementById('provider_id').value = provider_id;
-    }
+            if (provider_id) {
+                document.getElementById('provider_id').value = provider_id;
+            }
 
-    // clear existing rows
-    const body = document.getElementById('items-body');
-    body.innerHTML = '';
-    idx = 0;
-    for(const it of items){
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
+            // clear existing rows
+            const body = document.getElementById('items-body');
+            body.innerHTML = '';
+            idx = 0;
+            for (const it of items) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
         <td>
           <input name="items-${idx}-description" class="form-control"
                  value="${it.description}" />
@@ -281,7 +282,7 @@
             <option value="">--</option>
             {% for a in accounts %}
             <option value="{{a.id}}"
-              ${it.account_id=={{a.id}} ? 'selected' : ''}>
+              ${it.account_id == {{a.id}} ? 'selected' : ''}>
               {{a.name}}
             </option>
             {% endfor %}
@@ -295,55 +296,53 @@
         <td>
           <button type="button" class="btn btn-sm btn-danger remove-item">×</button>
         </td>`;
-      body.appendChild(tr);
-      idx++;
-    }
-    recalcTotals();
-  });
+                body.appendChild(tr);
+                idx++;
+            }
+            recalcTotals();
+        });
 
-  // 2) Save current form as a new template
-  document.getElementById('save-template').addEventListener('click', ()=>{
-    const name = prompt('Template name?');
-    if(!name) return;
-    // gather items
-    const data = [];
-    document.querySelectorAll('#items-body tr').forEach((tr,i)=>{
-      const desc = tr.querySelector(`[name="items-${i}-description"]`).value;
-      const acct = tr.querySelector(`[name="items-${i}-account_id"]`).value;
-      const amt  = tr.querySelector(`[name="items-${i}-amount"]`).value;
-      if(desc) data.push({description: desc, account_id: acct, amount: amt});
-    });
-    // build hidden form
-    const f = document.createElement('form');
-    f.method = 'POST';
-    f.action = '{{ url_for("expenses.create_template") }}';
-    f.style.display='none';
-    // template name
-    const in1 = document.createElement('input');
-    in1.name = 'template_name'; in1.value = name;
-    f.appendChild(in1);
-    // provider
-    const in2 = document.createElement('input');
-    in2.name = 'provider_id';
-    in2.value = document.getElementById('provider_id').value;
-    f.appendChild(in2);
-    // items JSON
-    const in3 = document.createElement('input');
-    in3.name = 'template_items';
-    in3.value = JSON.stringify(data);
-    f.appendChild(in3);
+        // 2) Save current form as a new template
+        document.getElementById('save-template').addEventListener('click', () => {
+            const name = prompt('Template name?');
+            if (!name) return;
+            // gather items
+            const data = [];
+            document.querySelectorAll('#items-body tr').forEach((tr, i) => {
+                const desc = tr.querySelector(`[name="items-${i}-description"]`).value;
+                const acct = tr.querySelector(`[name="items-${i}-account_id"]`).value;
+                const amt = tr.querySelector(`[name="items-${i}-amount"]`).value;
+                if (desc) data.push({description: desc, account_id: acct, amount: amt});
+            });
+            // build hidden form
+            const f = document.createElement('form');
+            f.method = 'POST';
+            f.action = '{{ url_for("expenses.create_template") }}';
+            f.style.display = 'none';
+            // template name
+            const in1 = document.createElement('input');
+            in1.name = 'template_name';
+            in1.value = name;
+            f.appendChild(in1);
+            // provider
+            const in2 = document.createElement('input');
+            in2.name = 'provider_id';
+            in2.value = document.getElementById('provider_id').value;
+            f.appendChild(in2);
+            // items JSON
+            const in3 = document.createElement('input');
+            in3.name = 'template_items';
+            in3.value = JSON.stringify(data);
+            f.appendChild(in3);
 
-    document.body.appendChild(f);
-    f.submit();
-  });
-
-
-
-  // initial calc on load
-  recalcTotals();
+            document.body.appendChild(f);
+            f.submit();
+        });
 
 
+        // initial calc on load
+        recalcTotals();
 
 
-</script>
+    </script>
 {% endblock %}
