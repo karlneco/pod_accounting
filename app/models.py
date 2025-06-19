@@ -165,3 +165,28 @@ class ExpenseItem(db.Model):
     account = db.relationship('Account')
     currency = db.relationship('Currency')
     order = db.relationship('Order')
+
+
+class ExpenseTemplate(db.Model):
+    __tablename__ = 'expense_templates'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), nullable=False, unique=True)
+    provider_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=True)
+    provider = db.relationship('Provider', backref='expense_templates')
+    items = db.relationship(
+        'ExpenseTemplateItem',
+        back_populates='template',
+        cascade='all, delete-orphan',
+        order_by='ExpenseTemplateItem.order'
+    )
+
+class ExpenseTemplateItem(db.Model):
+    __tablename__ = 'expense_template_items'
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey('expense_templates.id'), nullable=False)
+    description = db.Column(db.String(256), nullable=False)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
+    amount = db.Column(db.Numeric(12,2), nullable=False)
+    order = db.Column(db.Integer, nullable=False)
+    template = db.relationship('ExpenseTemplate', back_populates='items')
+    account = db.relationship('Account')

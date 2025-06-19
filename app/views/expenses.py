@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import uuid
 from datetime import datetime
@@ -9,11 +10,141 @@ from flask import (
     redirect, flash, request, current_app, jsonify
 )
 
-from ..models import db, ExpenseInvoice, Provider, ExpenseItem, Account, Order
+from ..models import db, ExpenseInvoice, Provider, ExpenseItem, Account, Order, ExpenseTemplate, ExpenseTemplateItem
 from ..utils.currency import usd_to_cad
 from ..utils.date_filters import get_date_range
 
 bp = Blueprint('expenses', __name__, template_folder='templates/expenses')
+
+
+@bp.route('/new', methods=['GET', 'POST'])
+def create_expense():
+    providers = Provider.query.order_by(Provider.name).all()
+    accounts = Account.query.order_by(Account.name).all()
+    templates = ExpenseTemplate.query.order_by(ExpenseTemplate.name).all()
+
+    if request.method == 'POST':
+        # Header fields
+        provider_id = request.form.get('provider_id', type=int)
+        invoice_date_str = request.form.get('invoice_date', '').strip()
+        invoice_number = request.form.get('invoice_number', '').strip() or None
+        supplier_invoice = request.form.get('supplier_invoice', '').strip() or None
+
+        # Validation
+        errors = []
+        if not provider_id:
+            errors.append("Provider is required")
+        try:
+            invoice_date = datetime.fromisoformat(invoice_date_str).date()
+        except:
+            invoice_date = None
+            errors.append("Invalid date")
+
+        # Parse line-items
+        line_items = []
+        idx = 0
+        while True:
+            desc = request.form.get(f"items-{idx}-description")
+            if desc is None:
+                break
+            amt_str = request.form.get(f"items-{idx}-amount", "0").strip()
+            acct_id = request.form.get(f"items-{idx}-account_id", type=int)
+            try:
+                amt = Decimal(amt_str)
+            except:
+                amt = None
+                errors.append(f"Line {idx + 1}: invalid amount")
+            line_items.append((desc, acct_id, amt))
+            idx += 1
+
+        if not line_items:
+            errors.append("At least one line item is required")
+
+        if errors:
+            for e in errors:
+                flash(e, 'warning')
+            # re-render
+            return render_template(
+                'expenses/form.html',
+                invoice=None,
+                providers=providers,
+                accounts=accounts,
+                form={
+                    'provider_id': provider_id,
+                    'invoice_date': invoice_date_str,
+                    'invoice_number': invoice_number,
+                    'supplier_invoice': supplier_invoice,
+                },
+                line_items=line_items,
+                templates=templates
+            )
+
+        # Create header
+        ei = ExpenseInvoice(
+            provider_id=provider_id,
+            invoice_date=invoice_date,
+            invoice_number=invoice_number,
+            supplier_invoice=supplier_invoice,
+            total_amount=0
+        )
+        db.session.add(ei)
+        db.session.flush()
+
+        # Create each ExpenseItem
+        for desc, acct_id, amt in line_items:
+            db.session.add(ExpenseItem(
+                expense_invoice_id=ei.id,
+                account_id=acct_id,
+                description=desc,
+                amount=amt,
+                currency_code=Provider.query.get(provider_id).currency_code
+            ))
+
+        subtotal = sum(amt for _, _, amt in line_items)
+        # if CAD, add GST
+        prov = Provider.query.get(provider_id)
+        if prov.currency_code == 'CAD':
+            gst = (subtotal * Decimal('0.05')).quantize(Decimal('0.01'))
+
+        else:
+            gst = Decimal('0')
+
+        # Add GST as its own line-item
+        if gst and gst != Decimal('0'):
+            gst_acc = Account.query.filter_by(name='GST Paid').first()
+            db.session.add(ExpenseItem(
+                expense_invoice_id = ei.id,
+                account_id         = gst_acc.id if gst_acc else None,
+                description        = 'GST',
+                amount             = gst,
+                currency_code      = prov.currency_code
+            ))
+
+
+        ei.total_amount = subtotal + gst
+        db.session.commit()
+        db.session.flush()
+
+        flash("Expense created.", 'success')
+        return redirect(url_for('expenses.show_expense', invoice_id=ei.id))
+
+    # GET
+    return render_template(
+        'expenses/form.html',
+        invoice=None,
+        providers=providers,
+        accounts=accounts,
+        form={
+            'provider_id': None,
+            'invoice_date': '',
+            'invoice_number': '',
+            'supplier_invoice': '',
+            'total_amount': ''
+        },
+        line_items=[],
+        templates=templates
+
+    )
 
 
 @bp.route('/')
@@ -58,120 +189,6 @@ def list_expenses():
         range_key=range_key,
         start_date=start_date,
         end_date=end_date
-    )
-
-
-@bp.route('/new', methods=['GET','POST'])
-def create_expense():
-    providers = Provider.query.order_by(Provider.name).all()
-    accounts  = Account.query.order_by(Account.name).all()
-
-    if request.method == 'POST':
-        # Header fields
-        provider_id      = request.form.get('provider_id', type=int)
-        invoice_date_str = request.form.get('invoice_date','').strip()
-        invoice_number   = request.form.get('invoice_number','').strip() or None
-        supplier_invoice = request.form.get('supplier_invoice','').strip() or None
-
-        # Validation
-        errors = []
-        if not provider_id:
-            errors.append("Provider is required")
-        try:
-            invoice_date = datetime.fromisoformat(invoice_date_str).date()
-        except:
-            invoice_date = None
-            errors.append("Invalid date")
-
-        # Parse line-items
-        line_items = []
-        idx = 0
-        while True:
-            desc = request.form.get(f"items-{idx}-description")
-            if desc is None:
-                break
-            amt_str = request.form.get(f"items-{idx}-amount","0").strip()
-            acct_id  = request.form.get(f"items-{idx}-account_id", type=int)
-            try:
-                amt = Decimal(amt_str)
-            except:
-                amt = None
-                errors.append(f"Line {idx+1}: invalid amount")
-            line_items.append((desc, acct_id, amt))
-            idx += 1
-
-        if not line_items:
-            errors.append("At least one line item is required")
-
-        if errors:
-            for e in errors:
-                flash(e,'warning')
-            # re-render
-            return render_template(
-                'expenses/form.html',
-                invoice=None,
-                providers=providers,
-                accounts=accounts,
-                form={
-                  'provider_id':provider_id,
-                  'invoice_date':invoice_date_str,
-                  'invoice_number':invoice_number,
-                  'supplier_invoice':supplier_invoice,
-                },
-                line_items=line_items
-            )
-
-        # Create header
-        ei = ExpenseInvoice(
-            provider_id=provider_id,
-            invoice_date=invoice_date,
-            invoice_number=invoice_number,
-            supplier_invoice=supplier_invoice,
-            total_amount=0
-        )
-        db.session.add(ei)
-        db.session.flush()
-
-        # Create each ExpenseItem
-        for desc, acct_id, amt in line_items:
-            db.session.add(ExpenseItem(
-                expense_invoice_id=ei.id,
-                account_id=acct_id,
-                description=desc,
-                amount=amt,
-                currency_code=Provider.query.get(provider_id).currency_code
-            ))
-        db.session.commit()
-
-        subtotal = sum(amt for _, _, amt in line_items)
-        # if CAD, add GST
-        prov = Provider.query.get(provider_id)
-        if prov.currency_code == 'CAD':
-            gst = (subtotal * Decimal('0.05')).quantize(Decimal('0.01'))
-        else:
-            gst = Decimal('0')
-
-        ei.total_amount = subtotal + gst
-        db.session.update(ei)
-        db.session.flush()
-
-        flash("Expense created.", 'success')
-        return redirect(url_for('expenses.show_expense', invoice_id=ei.id))
-
-    # GET
-    return render_template(
-        'expenses/form.html',
-        invoice=None,
-        providers=providers,
-        accounts=accounts,
-        form={
-          'provider_id':None,
-          'invoice_date':'',
-          'invoice_number':'',
-          'supplier_invoice':'',
-          'total_amount':''
-        },
-        line_items=[]
     )
 
 
@@ -305,6 +322,36 @@ def show_expense(invoice_id):
     return render_template('expenses/detail.html', invoice=invoice)
 
 
+@bp.route('/templates/create', methods=['POST'])
+def create_template():
+    name = request.form.get('template_name','').strip()
+    provider_id = request.form.get('provider_id', type=int)
+    raw = request.form.get('template_items','[]')
+    try:
+        data = json.loads(raw)
+    except:
+        flash('Could not parse template data', 'warning')
+        return redirect(request.referrer)
+
+    tmpl = ExpenseTemplate(name=name, provider_id=provider_id)
+    db.session.add(tmpl)
+    db.session.flush()
+    for idx, it in enumerate(data):
+        ti = ExpenseTemplateItem(
+          template_id=tmpl.id,
+          description=it['description'],
+          account_id=int(it['account_id']),
+          amount=Decimal(it['amount']),
+          order=idx
+        )
+        db.session.add(ti)
+    db.session.commit()
+    flash(f'Template "{name}" saved.', 'success')
+    return redirect(request.referrer)
+
+
+
+# JSON End points ------------------8<---------------------------------
 @bp.route('/provider/<int:provider_id>/last_invoice_items')
 def last_invoice_items(provider_id):
     # grab the very last invoice for that provider
@@ -320,10 +367,25 @@ def last_invoice_items(provider_id):
     items = [
         {
             'description': li.description,
-            'account_id':  li.account_id,
-            'amount':      str(li.amount)
+            'account_id': li.account_id,
+            'amount': str(li.amount)
         }
         for li in last.items
     ]
     prov = Provider.query.get(provider_id)
     return jsonify(items=items, currency_code=prov.currency_code)
+
+
+@bp.route('/templates/<int:template_id>')
+def get_template(template_id):
+    tmpl = ExpenseTemplate.query.get_or_404(template_id)
+    items = [
+        {
+            'description': it.description,
+            'account_id': it.account_id,
+            'amount': str(it.amount)
+        }
+        for it in tmpl.items
+    ]
+    return jsonify(items=items, provider_id=tmpl.provider_id)
+
