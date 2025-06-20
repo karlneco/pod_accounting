@@ -20,5 +20,7 @@ NOTE(s):
 exchangerate.host) and wants to see your API key with them in the .env file called `EXCHANGERATE_HOST_KEY`.  It's right 
 now hardcoded to work for a Canada based business and will convert only from USD to CAD.
 
- - This was mostly written by AI in like 3 days, so you should be able to feed it to an AI if you want help to add 
-things (make it suffer with what it wrote :) ). 
+ - This was mostly written with the help of/by AI in like 3 days, so you should be able to feed it to an AI if you want help to add 
+things (make it suffer with what it wrote :) ). It can be used as a reference on how AI can be used to write/create simple yet
+usefull apps.  That being said - if you don't have at least a basic understanding of coding you'll probably not find this of
+any use as its design to do what I want with no consideration for anyone else.
