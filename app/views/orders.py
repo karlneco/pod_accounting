@@ -8,6 +8,7 @@ from flask import (
     Blueprint, render_template, url_for, redirect,
     flash, request, current_app
 )
+from sqlalchemy import func, cast, String
 
 from ..models import db, Order, Customer, OrderItem, Product, Account, ExpenseItem, Provider, ExpenseInvoice
 from ..utils.currency import usd_to_cad
@@ -328,6 +329,7 @@ def list_orders():
     end = datetime.fromisoformat(end_str).date() if end_str else None
     start_date, end_date = get_date_range(range_key, start, end)
 
+    # 1) Base query: aggregate orders, include a currency_code from OrderItem
     q = (
         db.session.query(
             Order.order_number,
@@ -336,29 +338,86 @@ def list_orders():
             Order.sub_total.label('subtotal'),
             Order.shipping.label('shipping'),
             Order.total_amount.label('order_total'),
-            Order.delivery_status
+            Order.delivery_status,
+            func.coalesce(func.max(OrderItem.currency_code), 'USD').label('currency_code'),
         )
         .join(Customer)
         .outerjoin(OrderItem)
         .group_by(Order.id)
-        .order_by(Order.order_date.desc()))
-
+        .order_by(Order.order_date.desc())
+    )
     if start_date and end_date:
         q = q.filter(Order.order_date.between(start_date, end_date))
-
     stats = q.all()
 
-    total_orders = len(stats)
-    total_sub = sum(s.subtotal for s in stats)
-    total_shipping = sum(s.shipping for s in stats)
-    total_value = sum(s.order_total for s in stats)
+    # 2) Pull in fees (these are stored in CAD already)
+    fee_accounts = ['Merchant Fees', 'Currency Conversion Fees']
+    fee_rows = (
+        db.session.query(
+            cast(ExpenseItem.order_id, String).label('order_number'),
+            func.coalesce(func.sum(ExpenseItem.amount), 0).label('fees')
+        )
+        .join(Account, ExpenseItem.account_id == Account.id)
+        .filter(Account.name.in_(fee_accounts))
+        .group_by(cast(ExpenseItem.order_id, String))
+        .all()
+    )
+    fees_map = {row.order_number: row.fees for row in fee_rows}
+
+    # 3) Build a list of orders with all the columns we need
+    orders = []
+    total_sub = Decimal('0')
+    total_ship = Decimal('0')
+    total_val = Decimal('0')
+    total_fees = Decimal('0')
+    total_cad = Decimal('0')
+
+    for (order_number, order_date, customer_name,
+         subtotal, shipping, order_total,
+         delivery_status, currency_code) in stats:
+
+        # lookup fees for this order_number
+        fees = fees_map.get(order_number, Decimal('0'))
+
+        # compute revenue in CAD
+        if currency_code != 'CAD':
+            revenue_cad = usd_to_cad(order_total, order_date)
+        else:
+            revenue_cad = order_total
+
+        orders.append({
+            'order_number': order_number,
+            'order_date': order_date,
+            'customer_name': customer_name,
+            'subtotal': subtotal,
+            'shipping': shipping,
+            'order_total': order_total,
+            'fees': fees,
+            'total_cad': revenue_cad,
+            'delivery_status': delivery_status,
+        })
+
+        # accumulate sums
+        total_sub += subtotal
+        total_ship += shipping
+        total_val += order_total
+        total_fees += fees
+        total_cad += revenue_cad
+
+    total_orders = len(orders)
+
     return render_template(
         'orders/list.html',
-        stats=stats,
-        total_sub=total_sub,
-        total_shipping=total_shipping,
+        orders=orders,
         total_orders=total_orders,
-        total_value=total_value
+        total_sub=total_sub,
+        total_shipping=total_ship,
+        total_value=total_val,
+        total_fees=total_fees,
+        total_cad=total_cad,
+        range_key=range_key,
+        start_date=start_date,
+        end_date=end_date
     )
 
 

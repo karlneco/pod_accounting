@@ -8,7 +8,7 @@
     <a href="{{ url_for('orders.import_orders') }}" class="btn btn-secondary">Import Orders</a>
   </div>
 
-{% include "_date_filter.html" %}
+  {% include "_date_filter.html" %}
 
   <table class="table table-striped">
     <thead>
@@ -19,34 +19,39 @@
         <th class="text-end">Subtotal</th>
         <th class="text-end">Shipping</th>
         <th class="text-end">Total</th>
+        <th class="text-end">Fees</th>
+        <th class="text-end">Total CAD</th>
         <th class="text-center">Status</th>
       </tr>
     </thead>
     <tbody>
-      {% for order_number, order_date, customer_name, subtotal, shipping, order_total, delivery_status in stats %}
+      {% for o in orders %}
       <tr>
         <td>
-          <a href="{{ url_for('orders.show_order', order_number=order_number) }}">
-            {{ order_number }}
+          <a href="{{ url_for('orders.show_order', order_number=o.order_number) }}">
+            {{ o.order_number }}
           </a>
         </td>
-        <td>{{ order_date }}</td>
-        <td>{{ customer_name }}</td>
-        <td class="text-end">${{ '{:,.2f}'.format(subtotal) }}</td>
-        <td class="text-end">${{ '{:,.2f}'.format(shipping) }}</td>
-        <td class="text-end">${{ '{:,.2f}'.format(order_total) }}</td>
-        <td class="text-center">{{ delivery_status.capitalize() }}</td>
+        <td>{{ o.order_date }}</td>
+        <td>{{ o.customer_name }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(o.subtotal) }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(o.shipping) }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(o.order_total) }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(o.fees) }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(o.total_cad) }}</td>
+        <td class="text-center">{{ o.delivery_status.capitalize() }}</td>
       </tr>
       {% endfor %}
     </tbody>
     <tfoot>
       <tr>
         <th>Totals</th>
-          <td>{{ total_orders }}</td>
-          <td/>
+        <td>{{ total_orders }}</td><td></td>
         <td class="text-end">${{ '{:,.2f}'.format(total_sub) }}</td>
         <td class="text-end">${{ '{:,.2f}'.format(total_shipping) }}</td>
         <td class="text-end">${{ '{:,.2f}'.format(total_value) }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(total_fees) }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(total_cad) }}</td>
         <td></td>
       </tr>
     </tfoot>
