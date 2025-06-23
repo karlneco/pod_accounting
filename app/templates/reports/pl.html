@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-5">
+<div class="container-fluid mt-5">
   <h1>Profit and Loss</h1>
   <p class="text-muted">
     {{ start_date or '…' }} – {{ end_date or '…' }}
@@ -9,92 +9,146 @@
 
   {% include "_date_filter.html" %}
 
-  <table class="table">
-    <!-- Income section -->
-    <thead class="table-light">
-      <tr>
-        <th>Income</th>
-        <th class="text-end">Amount (CAD)</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for acc, total in income %}
-      <tr>
-        <td>{{ acc }}</td>
-        <td class="text-end">${{ '{:,.2f}'.format(total) }}</td>
-      </tr>
-      {% endfor %}
-      <tr class="table-light">
-        <th>Total for Income</th>
-        <th class="text-end">${{ '{:,.2f}'.format(total_income) }}</th>
-      </tr>
-    </tbody>
+  <!-- Granularity selector -->
+  <div class="row mb-3">
+    <div class="col-md-3">
+      <label for="granularity" class="form-label">Time Granularity</label>
+      <select id="granularity" class="form-select" onchange="changeGranularity()">
+        <option value="month" {% if granularity == 'month' %}selected{% endif %}>Monthly</option>
+        <option value="week" {% if granularity == 'week' %}selected{% endif %}>Weekly</option>
+        <option value="day" {% if granularity == 'day' %}selected{% endif %}>Daily</option>
+      </select>
+    </div>
+  </div>
 
-    <!-- COGS section -->
-    <thead class="table-light mt-4">
-      <tr>
-        <th>Cost of Goods Sold</th>
-        <th class="text-end">Amount (CAD)</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for acc, total in cogs %}
-      <tr>
-        <td>{{ acc }}</td>
-        <td class="text-end">${{ '{:,.2f}'.format(total) }}</td>
-      </tr>
-      {% endfor %}
-      <tr class="table-light">
-        <th>Total for COGS</th>
-        <th class="text-end">${{ '{:,.2f}'.format(total_cogs) }}</th>
-      </tr>
-    </tbody>
+  <div class="table-responsive" style="overflow-x: auto;">
+    <table class="table table-sm" style="min-width: 800px;">
+      <!-- Header with period columns -->
+      <thead class="table-light">
+        <tr>
+          <th style="min-width: 250px; position: sticky; left: 0; background: white; z-index: 1;">Account</th>
+          {% for col in period_columns %}
+          <th class="text-end" style="min-width: 120px;">{{ col.label }}</th>
+          {% endfor %}
+          <th class="text-end table-secondary" style="min-width: 140px; position: sticky; right: 0; background: #f8f9fa; z-index: 1;">Total</th>
+        </tr>
+      </thead>
 
-    <!-- Gross Profit -->
-    <tbody>
-      <tr class="table-secondary">
-        <th>Gross Profit</th>
-        <th class="text-end">${{ '{:,.2f}'.format(gross_profit) }}</th>
-      </tr>
-    </tbody>
+      <!-- Income section -->
+      <tbody>
+        <tr class="table-primary">
+          <th colspan="{{ period_columns|length + 2 }}" style="position: sticky; left: 0; background: #cfe2ff; z-index: 1;">Income</th>
+        </tr>
+        <tr>
+          <td style="position: sticky; left: 0; background: white; z-index: 1;"><strong>Number of Orders</strong></td>
+          {% for col in period_columns %}
+          <td class="text-end"><strong>{{ order_counts_by_period.get(col.key, 0) }}</strong></td>
+          {% endfor %}
+          <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;"><strong>{{ order_counts_by_period.values() | sum }}</strong></td>
+        </tr>
+        {% for item in income %}
+        <tr>
+          <td style="position: sticky; left: 0; background: white; z-index: 1;">{{ item.name }}</td>
+          {% for col in period_columns %}
+          <td class="text-end">${{ '{:,.2f}'.format(item.periods[col.key]) }}</td>
+          {% endfor %}
+          <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;">${{ '{:,.2f}'.format(item.total) }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="table-light">
+          <th style="position: sticky; left: 0; background: #f8f9fa; z-index: 1;">Total Income</th>
+          {% for col in period_columns %}
+          <th class="text-end">${{ '{:,.2f}'.format(period_totals.income[col.key]) }}</th>
+          {% endfor %}
+          <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.income.values() | sum) }}</th>
+        </tr>
+      </tbody>
 
-    <!-- Expenses section -->
-    <thead class="table-light mt-4">
-      <tr>
-        <th>Expenses</th>
-        <th class="text-end">Amount (CAD)</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for exp in expenses %}
-      <tr>
-        <td>
-<a href="{{ url_for('accounts.account_transactions',
-                     account_id=exp.id,
-                     range=range_key,
-                     start=start_date,
-                     end=end_date) }}">
-              {{ exp.name }}
+      <!-- COGS section -->
+      <tbody>
+        <tr class="table-warning">
+          <th colspan="{{ period_columns|length + 2 }}" style="position: sticky; left: 0; background: #fff3cd; z-index: 1;">Cost of Goods Sold</th>
+        </tr>
+        {% for item in cogs %}
+        <tr>
+          <td style="position: sticky; left: 0; background: white; z-index: 1;">{{ item.name }}</td>
+          {% for col in period_columns %}
+          <td class="text-end">${{ '{:,.2f}'.format(item.periods[col.key]) }}</td>
+          {% endfor %}
+          <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;">${{ '{:,.2f}'.format(item.total) }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="table-light">
+          <th style="position: sticky; left: 0; background: #f8f9fa; z-index: 1;">Total COGS</th>
+          {% for col in period_columns %}
+          <th class="text-end">${{ '{:,.2f}'.format(period_totals.cogs[col.key]) }}</th>
+          {% endfor %}
+          <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.cogs.values() | sum) }}</th>
+        </tr>
+      </tbody>
+
+      <!-- Gross Profit -->
+      <tbody>
+        <tr class="table-info">
+          <th style="position: sticky; left: 0; background: #d1ecf1; z-index: 1;">Gross Profit</th>
+          {% for col in period_columns %}
+          <th class="text-end">${{ '{:,.2f}'.format(period_totals.gross_profit[col.key]) }}</th>
+          {% endfor %}
+          <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.gross_profit.values() | sum) }}</th>
+        </tr>
+      </tbody>
+
+      <!-- Expenses section -->
+      <tbody>
+        <tr class="table-danger">
+          <th colspan="{{ period_columns|length + 2 }}" style="position: sticky; left: 0; background: #f8d7da; z-index: 1;">Expenses</th>
+        </tr>
+        {% for item in expenses %}
+        <tr>
+          <td style="position: sticky; left: 0; background: white; z-index: 1;">
+            <a href="{{ url_for('accounts.account_transactions',
+                               account_id=item.id,
+                               range=range_key,
+                               start=start_date,
+                               end=end_date) }}">
+              {{ item.name }}
             </a>
-        </td>
-        <td class="text-end">
-          ${{ '{:,.2f}'.format(exp.total) }}
-        </td>
-      </tr>
-      {% endfor %}
-      <tr class="table-light">
-        <th>Total for Expenses</th>
-        <th class="text-end">${{ '{:,.2f}'.format(total_expenses) }}</th>
-      </tr>
-    </tbody>
+          </td>
+          {% for col in period_columns %}
+          <td class="text-end">${{ '{:,.2f}'.format(item.periods[col.key]) }}</td>
+          {% endfor %}
+          <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;">${{ '{:,.2f}'.format(item.total) }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="table-light">
+          <th style="position: sticky; left: 0; background: #f8f9fa; z-index: 1;">Total Expenses</th>
+          {% for col in period_columns %}
+          <th class="text-end">${{ '{:,.2f}'.format(period_totals.expenses[col.key]) }}</th>
+          {% endfor %}
+          <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.expenses.values() | sum) }}</th>
+        </tr>
+      </tbody>
 
-    <!-- Net Profit -->
-    <tbody>
-      <tr class="table-dark text-white">
-        <th>Net Profit</th>
-        <th class="text-end">${{ '{:,.2f}'.format(net_profit) }}</th>
-      </tr>
-    </tbody>
-  </table>
+      <!-- Net Profit -->
+      <tbody>
+        <tr class="table-dark text-white">
+          <th style="position: sticky; left: 0; background: #343a40; z-index: 1;">Net Profit</th>
+          {% for col in period_columns %}
+          <th class="text-end">${{ '{:,.2f}'.format(period_totals.net_profit[col.key]) }}</th>
+          {% endfor %}
+          <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.net_profit.values() | sum) }}</th>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </div>
+
+<script>
+function changeGranularity() {
+    const granularity = document.getElementById('granularity').value;
+    const url = new URL(window.location);
+    url.searchParams.set('granularity', granularity);
+    window.location.href = url.toString();
+}
+</script>
 {% endblock %}
