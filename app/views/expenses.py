@@ -97,7 +97,8 @@ def create_expense():
                 account_id=acct_id,
                 description=desc,
                 amount=amt,
-                currency_code=Provider.query.get(provider_id).currency_code
+                currency_code=Provider.query.get(provider_id).currency_code,
+                order_id=invoice_number
             ))
 
         subtotal = sum(amt for _, _, amt in line_items)
@@ -117,7 +118,8 @@ def create_expense():
                 account_id=gst_acc.id if gst_acc else None,
                 description='GST',
                 amount=gst,
-                currency_code=prov.currency_code
+                currency_code=prov.currency_code,
+                order_id=invoice_number
             ))
 
         ei.total_amount = subtotal + gst
