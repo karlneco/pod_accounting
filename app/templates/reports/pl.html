@@ -5,13 +5,11 @@
       position: sticky;
       z-index: 1;
       left: 0;
-      background: #ddd;
     }
     tbody th > :first-child {
       position: sticky;
       z-index: 1;
       left: 0;
-      background: #ddd;
     }
     .sticky-col {
       position: sticky;
@@ -44,8 +42,8 @@
     </div>
   </div>
 
-  <div style="overflow-x: auto; width: 800px; max-width: 800px;">
-    <table class="table table-sm" style="min-width: 800px;">
+  <div id="pl-table-container" style="overflow-x: auto; width: 100%; max-width: 80vw;">
+    <table id="pl-table" class="table table-sm" style="min-width: 800px;">
       <!-- Header with period columns -->
       <thead class="table-light">
         <tr>
@@ -124,13 +122,6 @@
 
       <!-- Gross Profit -->
       <tbody>
-        <tr class="table-info">
-          <td class="sticky-col">Gross Profit</td>
-          {% for col in period_columns %}
-          <td style="background: #d1ecf1;"></td>
-          {% endfor %}
-          <td style="background: #d1ecf1;"></td>
-        </tr>
         <tr>
           <th class="sticky-col" style="background: #d1ecf1; z-index: 1;">Gross Profit</th>
           {% for col in period_columns %}
@@ -177,17 +168,10 @@
 
       <!-- Net Profit -->
       <tbody>
-        <tr class="table-dark text-white">
-          <td class="sticky-col">Net Profit</td>
-          {% for col in period_columns %}
-          <td style="background: #343a40;"></td>
-          {% endfor %}
-          <td style="background: #343a40;"></td>
-        </tr>
         <tr>
           <th class="sticky-col" style="background: #343a40; color: white;">Net Profit</th>
           {% for col in period_columns %}
-          <th class="text-end">${{ '{:,.2f}'.format(period_totals.net_profit[col.key]) }}</th>
+          <th  style="background: #343a40; color: white" class="text-end">${{ '{:,.2f}'.format(period_totals.net_profit[col.key]) }}</th>
           {% endfor %}
           <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.net_profit.values() | sum) }}</th>
         </tr>
@@ -203,5 +187,18 @@ function changeGranularity() {
     url.searchParams.set('granularity', granularity);
     window.location.href = url.toString();
 }
+
+function setPLTableWidth() {
+  const container = document.getElementById('pl-table-container');
+  const table = document.getElementById('pl-table');
+  if (!container || !table) return;
+  // Make the table 120% of the container width, or at least 800px
+  const minWidth = 800;
+  const newWidth = Math.max(container.offsetWidth * 1.2, minWidth);
+  table.style.width = newWidth + 'px';
+}
+
+window.addEventListener('DOMContentLoaded', setPLTableWidth);
+window.addEventListener('resize', setPLTableWidth);
 </script>
 {% endblock %}
