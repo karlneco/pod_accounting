@@ -1,5 +1,28 @@
 {% extends "base.html" %}
-
+{% block extra_styles %}
+  <style>
+    tbody tr > :first-child {
+      position: sticky;
+      z-index: 1;
+      left: 0;
+      background: #ddd;
+    }
+    tbody th > :first-child {
+      position: sticky;
+      z-index: 1;
+      left: 0;
+      background: #ddd;
+    }
+    .sticky-col {
+      position: sticky;
+      left: 0;
+      background: white;
+      z-index: 2;
+      box-shadow: 2px 0 5px -2px #ccc;
+      min-width: 250px;
+    }
+  </style>
+  {% endblock %}
 {% block content %}
 <div class="container-fluid mt-5">
   <h1>Profit and Loss</h1>
@@ -21,12 +44,12 @@
     </div>
   </div>
 
-  <div class="table-responsive" style="overflow-x: auto;">
+  <div style="overflow-x: auto; width: 800px; max-width: 800px;">
     <table class="table table-sm" style="min-width: 800px;">
       <!-- Header with period columns -->
       <thead class="table-light">
         <tr>
-          <th style="min-width: 250px; position: sticky; left: 0; background: white; z-index: 1;">Account</th>
+          <th class="sticky-col" style="background: white;">Account</th>
           {% for col in period_columns %}
           <th class="text-end" style="min-width: 120px;">{{ col.label }}</th>
           {% endfor %}
@@ -37,26 +60,32 @@
       <!-- Income section -->
       <tbody>
         <tr class="table-primary">
-          <th colspan="{{ period_columns|length + 2 }}" style="position: sticky; left: 0; background: #cfe2ff; z-index: 1;">Income</th>
+          <td class="sticky-col">Income</td>
+          {% for col in period_columns %}
+          <td style="background: #cfe2ff;"></td>
+          {% endfor %}
+          <td style="background: #cfe2ff;"></td>
         </tr>
         <tr>
-          <td style="position: sticky; left: 0; background: white; z-index: 1;"><strong>Number of Orders</strong></td>
+          <td class="sticky-col"><strong>Number of Orders</strong></td>
           {% for col in period_columns %}
           <td class="text-end"><strong>{{ order_counts_by_period.get(col.key, 0) }}</strong></td>
           {% endfor %}
           <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;"><strong>{{ order_counts_by_period.values() | sum }}</strong></td>
         </tr>
+        
         {% for item in income %}
         <tr>
-          <td style="position: sticky; left: 0; background: white; z-index: 1;">{{ item.name }}</td>
+          <td class="sticky-col">{{ item.name }}</td>
           {% for col in period_columns %}
           <td class="text-end">${{ '{:,.2f}'.format(item.periods[col.key]) }}</td>
           {% endfor %}
           <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;">${{ '{:,.2f}'.format(item.total) }}</td>
         </tr>
         {% endfor %}
+        
         <tr class="table-light">
-          <th style="position: sticky; left: 0; background: #f8f9fa; z-index: 1;">Total Income</th>
+          <th class="sticky-col" style="background: #f8f9fa">Total Income</th>
           {% for col in period_columns %}
           <th class="text-end">${{ '{:,.2f}'.format(period_totals.income[col.key]) }}</th>
           {% endfor %}
@@ -67,19 +96,25 @@
       <!-- COGS section -->
       <tbody>
         <tr class="table-warning">
-          <th colspan="{{ period_columns|length + 2 }}" style="position: sticky; left: 0; background: #fff3cd; z-index: 1;">Cost of Goods Sold</th>
+          <td class="sticky-col">Cost of Goods Sold</td>
+          {% for col in period_columns %}
+          <td style="background: #fff3cd;"></td>
+          {% endfor %}
+          <td style="background: #fff3cd;"></td>
         </tr>
+
         {% for item in cogs %}
         <tr>
-          <td style="position: sticky; left: 0; background: white; z-index: 1;">{{ item.name }}</td>
+          <td class="sticky-col">{{ item.name }}</td>
           {% for col in period_columns %}
           <td class="text-end">${{ '{:,.2f}'.format(item.periods[col.key]) }}</td>
           {% endfor %}
           <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;">${{ '{:,.2f}'.format(item.total) }}</td>
         </tr>
         {% endfor %}
+
         <tr class="table-light">
-          <th style="position: sticky; left: 0; background: #f8f9fa; z-index: 1;">Total COGS</th>
+          <th class="sticky-col" style="background: #f8f9fa; z-index: 1;">Total COGS</th>
           {% for col in period_columns %}
           <th class="text-end">${{ '{:,.2f}'.format(period_totals.cogs[col.key]) }}</th>
           {% endfor %}
@@ -90,9 +125,16 @@
       <!-- Gross Profit -->
       <tbody>
         <tr class="table-info">
-          <th style="position: sticky; left: 0; background: #d1ecf1; z-index: 1;">Gross Profit</th>
+          <td class="sticky-col">Gross Profit</td>
           {% for col in period_columns %}
-          <th class="text-end">${{ '{:,.2f}'.format(period_totals.gross_profit[col.key]) }}</th>
+          <td style="background: #d1ecf1;"></td>
+          {% endfor %}
+          <td style="background: #d1ecf1;"></td>
+        </tr>
+        <tr>
+          <th class="sticky-col" style="background: #d1ecf1; z-index: 1;">Gross Profit</th>
+          {% for col in period_columns %}
+          <th style="background: #d1ecf1;" class="text-end">${{ '{:,.2f}'.format(period_totals.gross_profit[col.key]) }}</th>
           {% endfor %}
           <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.gross_profit.values() | sum) }}</th>
         </tr>
@@ -101,11 +143,15 @@
       <!-- Expenses section -->
       <tbody>
         <tr class="table-danger">
-          <th colspan="{{ period_columns|length + 2 }}" style="position: sticky; left: 0; background: #f8d7da; z-index: 1;">Expenses</th>
+          <td class="sticky-col">Expenses</td>
+          {% for col in period_columns %}
+          <td style="background: #f8d7da;"></td>
+          {% endfor %}
+          <td style="background: #f8d7da;"></td>
         </tr>
         {% for item in expenses %}
         <tr>
-          <td style="position: sticky; left: 0; background: white; z-index: 1;">
+          <td class="sticky-col">
             <a href="{{ url_for('accounts.account_transactions',
                                account_id=item.id,
                                range=range_key,
@@ -121,7 +167,7 @@
         </tr>
         {% endfor %}
         <tr class="table-light">
-          <th style="position: sticky; left: 0; background: #f8f9fa; z-index: 1;">Total Expenses</th>
+          <th class="sticky-col" style="background: #f8f9fa; z-index: 1;">Total Expenses</th>
           {% for col in period_columns %}
           <th class="text-end">${{ '{:,.2f}'.format(period_totals.expenses[col.key]) }}</th>
           {% endfor %}
@@ -132,7 +178,14 @@
       <!-- Net Profit -->
       <tbody>
         <tr class="table-dark text-white">
-          <th style="position: sticky; left: 0; background: #343a40; z-index: 1;">Net Profit</th>
+          <td class="sticky-col">Net Profit</td>
+          {% for col in period_columns %}
+          <td style="background: #343a40;"></td>
+          {% endfor %}
+          <td style="background: #343a40;"></td>
+        </tr>
+        <tr>
+          <th class="sticky-col" style="background: #343a40; color: white;">Net Profit</th>
           {% for col in period_columns %}
           <th class="text-end">${{ '{:,.2f}'.format(period_totals.net_profit[col.key]) }}</th>
           {% endfor %}
