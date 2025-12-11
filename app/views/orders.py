@@ -364,26 +364,54 @@ def list_orders():
     )
     fees_map = {row.order_number: row.fees for row in fee_rows}
 
-    # 3) Build a list of orders with all the columns we need
+    # 3) Pull in COGS (these are stored in USD, will convert to CAD)
+    cogs_accounts = ['COGS', 'COGS Shipping', 'COGS Tax']
+    cogs_rows = (
+        db.session.query(
+            cast(ExpenseItem.order_id, String).label('order_number'),
+            func.coalesce(func.sum(ExpenseItem.amount), 0).label('cogs')
+        )
+        .join(Account, ExpenseItem.account_id == Account.id)
+        .filter(Account.name.in_(cogs_accounts))
+        .group_by(cast(ExpenseItem.order_id, String))
+        .all()
+    )
+    cogs_map = {row.order_number: row.cogs for row in cogs_rows}
+
+    # 4) Build a list of orders with all the columns we need
     orders = []
     total_sub = Decimal('0')
     total_ship = Decimal('0')
     total_val = Decimal('0')
     total_fees = Decimal('0')
+    total_cogs_usd = Decimal('0')
     total_cad = Decimal('0')
+    total_profit = Decimal('0')
 
     for (order_number, order_date, customer_name,
          subtotal, shipping, order_total,
          delivery_status, currency_code) in stats:
 
-        # lookup fees for this order_number
+        # lookup fees and cogs for this order_number
         fees = fees_map.get(order_number, Decimal('0'))
+        cogs_usd = cogs_map.get(order_number, Decimal('0'))
 
         # compute revenue in CAD
         if currency_code != 'CAD':
             revenue_cad = usd_to_cad(order_total, order_date)
+            cogs_cad = usd_to_cad(cogs_usd, order_date)
         else:
             revenue_cad = order_total
+            cogs_cad = cogs_usd
+
+        # compute profit: revenue - cogs - fees (all in CAD)
+        profit_cad = revenue_cad - cogs_cad - fees
+
+        # compute margin
+        if revenue_cad and revenue_cad != 0:
+            margin = (profit_cad / revenue_cad * Decimal('100')).quantize(Decimal('0.01'))
+        else:
+            margin = None
 
         orders.append({
             'order_number': order_number,
@@ -392,8 +420,11 @@ def list_orders():
             'subtotal': subtotal,
             'shipping': shipping,
             'order_total': order_total,
+            'cogs_usd': cogs_usd,
             'fees': fees,
             'total_cad': revenue_cad,
+            'profit_cad': profit_cad,
+            'margin': margin,
             'delivery_status': delivery_status,
         })
 
@@ -402,9 +433,17 @@ def list_orders():
         total_ship += shipping
         total_val += order_total
         total_fees += fees
+        total_cogs_usd += cogs_usd
         total_cad += revenue_cad
+        total_profit += profit_cad
 
     total_orders = len(orders)
+
+    # Calculate average margin
+    if total_cad and total_cad != 0:
+        avg_margin = (total_profit / total_cad * Decimal('100')).quantize(Decimal('0.01'))
+    else:
+        avg_margin = None
 
     return render_template(
         'orders/list.html',
@@ -414,7 +453,10 @@ def list_orders():
         total_shipping=total_ship,
         total_value=total_val,
         total_fees=total_fees,
+        total_cogs_usd=total_cogs_usd,
         total_cad=total_cad,
+        total_profit=total_profit,
+        avg_margin=avg_margin,
         range_key=range_key,
         start_date=start_date,
         end_date=end_date

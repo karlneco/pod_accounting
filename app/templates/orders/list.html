@@ -19,8 +19,11 @@
         <th class="text-end">Subtotal</th>
         <th class="text-end">Shipping</th>
         <th class="text-end">Total</th>
+        <th class="text-end">COGS</th>
         <th class="text-end">Fees</th>
         <th class="text-end">Total CAD</th>
+        <th class="text-end">Profit</th>
+        <th class="text-end">Margin</th>
         <th class="text-center">Status</th>
       </tr>
     </thead>
@@ -37,8 +40,11 @@
         <td class="text-end">${{ '{:,.2f}'.format(o.subtotal) }}</td>
         <td class="text-end">${{ '{:,.2f}'.format(o.shipping) }}</td>
         <td class="text-end">${{ '{:,.2f}'.format(o.order_total) }}</td>
-        <td class="text-end">${{ '{:,.2f}'.format(o.fees) }}</td>
-        <td class="text-end">${{ '{:,.2f}'.format(o.total_cad) }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(o.cogs_usd) }}</td>
+        <td class="text-end">C${{ '{:,.2f}'.format(o.fees) }}</td>
+        <td class="text-end">C${{ '{:,.2f}'.format(o.total_cad) }}</td>
+        <td class="text-end">C${{ '{:,.2f}'.format(o.profit_cad) }}</td>
+        <td class="text-end">{% if o.margin is not none %}{{ '{:.2f}'.format(o.margin) }}%{% else %}-{% endif %}</td>
         <td class="text-center">{{ o.delivery_status.capitalize() }}</td>
       </tr>
       {% endfor %}
@@ -50,8 +56,11 @@
         <td class="text-end">${{ '{:,.2f}'.format(total_sub) }}</td>
         <td class="text-end">${{ '{:,.2f}'.format(total_shipping) }}</td>
         <td class="text-end">${{ '{:,.2f}'.format(total_value) }}</td>
-        <td class="text-end">${{ '{:,.2f}'.format(total_fees) }}</td>
-        <td class="text-end">${{ '{:,.2f}'.format(total_cad) }}</td>
+        <td class="text-end">${{ '{:,.2f}'.format(total_cogs_usd) }}</td>
+        <td class="text-end">C${{ '{:,.2f}'.format(total_fees) }}</td>
+        <td class="text-end">C${{ '{:,.2f}'.format(total_cad) }}</td>
+        <td class="text-end">C${{ '{:,.2f}'.format(total_profit) }}</td>
+        <td class="text-end">{% if avg_margin is not none %}{{ '{:.2f}'.format(avg_margin) }}%{% else %}-{% endif %}</td>
         <td></td>
       </tr>
     </tfoot>

@@ -1,0 +1,14 @@
+version: '3.9'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5050:5050"
+    volumes:
+      - .:/app  # Mount source code
+      - ~/Documents/dbs:/data  # Mount volume for SQLite DB
+    environment:
+      FLASK_APP: pod_accounting.py
+      FLASK_ENV: development
+      DATABASE_URL: sqlite:////data/pod_accounting.db  # 4 slashes = absolute path

@@ -12,12 +12,12 @@ if [ -f .env ]; then
 fi
 
 # Required exports
-export FLASK_APP=manage.py
+export FLASK_APP=pod_accounting
 export FLASK_ENV=development
 
 # Optional—but recommended—overrides
 export SECRET_KEY=${SECRET_KEY:-"dev-secret-key"}
-export DATABASE_URL=${DATABASE_URL:-"sqlite:///$(pwd)/pod_accounting.db"}
+export DATABASE_URL=${DATABASE_URL:-"sqlite:///$(pwd)/data/pod_accounting.db"}
 
 echo "FLASK_APP=$FLASK_APP"
 echo "FLASK_ENV=$FLASK_ENV"
@@ -25,4 +25,4 @@ echo "Using SECRET_KEY=${SECRET_KEY}"
 echo "Using DATABASE_URL=${DATABASE_URL}"
 
 # Launch!
-exec python manage.py
+exec python pod_accounting.py
