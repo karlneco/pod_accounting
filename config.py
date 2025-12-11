@@ -10,3 +10,7 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SECRET_KEY = os.getenv("SECRET_KEY", "you-should-change-this")
+    
+    # Printify API credentials
+    PRINTIFY_API_TOKEN = os.getenv("PRINTIFY_API_TOKEN")
+    PRINTIFY_SHOP_ID = os.getenv("PRINTIFY_SHOP_ID")

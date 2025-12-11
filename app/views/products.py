@@ -14,7 +14,7 @@ def list_products():
         )
         .outerjoin(OrderItem)
         .group_by(Product.id)
-        .order_by(Product.name)
+        .order_by(func.coalesce(func.sum(OrderItem.quantity), 0).desc())
         .all()
     )
     total_products = len(stats)
