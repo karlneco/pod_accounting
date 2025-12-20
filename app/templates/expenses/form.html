@@ -143,6 +143,9 @@
     </div>
 
     <script>
+        // Track selected template ID
+        let selectedTemplateId = null;
+
         // === helper to recalc all totals ===
         function recalcTotals() {
             let subtotal = 0;
@@ -168,6 +171,18 @@
             const total = subtotal + gst;
             document.getElementById('grand-total').textContent =
                 '$' + total.toFixed(2);
+        }
+
+        // === Update button text based on template selection ===
+        function updateTemplateButton() {
+            const btn = document.getElementById('save-template');
+            if (selectedTemplateId) {
+                btn.textContent = 'Update Template';
+                btn.className = 'btn btn-outline-primary w-100';
+            } else {
+                btn.textContent = 'Save as Template';
+                btn.className = 'btn btn-outline-secondary w-100';
+            }
         }
 
         // === add/remove row logic ===
@@ -254,10 +269,18 @@
             recalcTotals();
         });
 
-        // 1) Load a template’s items into the form
+        // 1) Load a template's items into the form
         document.getElementById('template_select').addEventListener('change', async function () {
             const tid = this.value;
-            if (!tid) return;
+            if (!tid) {
+                selectedTemplateId = null;
+                updateTemplateButton();
+                return;
+            }
+            
+            selectedTemplateId = tid;
+            updateTemplateButton();
+            
             const resp = await fetch(`/expenses/templates/${tid}`);
             const {items, provider_id} = await resp.json();
 
@@ -302,33 +325,47 @@
             recalcTotals();
         });
 
-        // 2) Save current form as a new template
+        // 2) Save/Update template
         document.getElementById('save-template').addEventListener('click', () => {
-            const name = prompt('Template name?');
-            if (!name) return;
             // gather items
             const data = [];
             document.querySelectorAll('#items-body tr').forEach((tr, i) => {
-                const desc = tr.querySelector(`[name="items-${i}-description"]`).value;
-                const acct = tr.querySelector(`[name="items-${i}-account_id"]`).value;
-                const amt = tr.querySelector(`[name="items-${i}-amount"]`).value;
+                const desc = tr.querySelector(`[name="items-${i}-description"]`)?.value;
+                const acct = tr.querySelector(`[name="items-${i}-account_id"]`)?.value;
+                const amt = tr.querySelector(`[name="items-${i}-amount"]`)?.value;
                 if (desc) data.push({description: desc, account_id: acct, amount: amt});
             });
+
+            if (data.length === 0) {
+                alert('Please add at least one line item to save a template.');
+                return;
+            }
+
             // build hidden form
             const f = document.createElement('form');
             f.method = 'POST';
-            f.action = '{{ url_for("expenses.create_template") }}';
             f.style.display = 'none';
-            // template name
-            const in1 = document.createElement('input');
-            in1.name = 'template_name';
-            in1.value = name;
-            f.appendChild(in1);
+
+            if (selectedTemplateId) {
+                // Update existing template
+                f.action = `/expenses/templates/${selectedTemplateId}/update`;
+            } else {
+                // Create new template
+                const name = prompt('Template name?');
+                if (!name) return;
+                f.action = '{{ url_for("expenses.create_template") }}';
+                const in1 = document.createElement('input');
+                in1.name = 'template_name';
+                in1.value = name;
+                f.appendChild(in1);
+            }
+
             // provider
             const in2 = document.createElement('input');
             in2.name = 'provider_id';
             in2.value = document.getElementById('provider_id').value;
             f.appendChild(in2);
+            
             // items JSON
             const in3 = document.createElement('input');
             in3.name = 'template_items';

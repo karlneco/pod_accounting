@@ -351,6 +351,41 @@ def create_template():
     return redirect(request.referrer)
 
 
+@bp.route('/templates/<int:template_id>/update', methods=['POST'])
+def update_template(template_id):
+    tmpl = ExpenseTemplate.query.get_or_404(template_id)
+    provider_id = request.form.get('provider_id', type=int)
+    raw = request.form.get('template_items', '[]')
+    try:
+        data = json.loads(raw)
+    except:
+        flash('Could not parse template data', 'warning')
+        return redirect(request.referrer)
+
+    # Update provider
+    tmpl.provider_id = provider_id
+
+    # Delete existing items
+    for item in tmpl.items:
+        db.session.delete(item)
+    db.session.flush()
+
+    # Create new items
+    for idx, it in enumerate(data):
+        ti = ExpenseTemplateItem(
+            template_id=tmpl.id,
+            description=it['description'],
+            account_id=int(it['account_id']),
+            amount=Decimal(it['amount']),
+            order=idx
+        )
+        db.session.add(ti)
+    
+    db.session.commit()
+    flash(f'Template "{tmpl.name}" updated.', 'success')
+    return redirect(request.referrer)
+
+
 # JSON End points ------------------8<---------------------------------
 @bp.route('/provider/<int:provider_id>/last_invoice_items')
 def last_invoice_items(provider_id):
