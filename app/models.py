@@ -102,7 +102,7 @@ class Order(db.Model):
     discount_code = db.Column(db.String(64), nullable=True)
     discount_percent = db.Column(db.Numeric(5, 2), default=0)  # 0–100%
     delivery_status = db.Column(
-        db.Enum('pending', 'unfulfilled', 'processing', 'fulfilled', 'shipped', 'delivered', 'cancelled', name='delivery_statuses'),
+        db.Enum('pending', 'unfulfilled', 'processing', 'partial', 'fulfilled', 'shipped', 'delivered', 'cancelled', name='delivery_statuses'),
         nullable=False,
         default='pending'
     )
