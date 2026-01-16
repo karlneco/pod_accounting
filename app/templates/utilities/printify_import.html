@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">Import from Printify API</h1>
+  
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle"></i>
+    <strong>How this works:</strong>
+    <ul class="mb-0 mt-2">
+      <li>Scans your orders to find those missing COGS (Cost of Goods Sold) data</li>
+      <li>Connects to Printify API to fetch production and shipping costs</li>
+      <li>Matches orders using your Shopify order numbers</li>
+      <li>Creates expense records linked to your orders</li>
+    </ul>
+  </div>
+  
+  <div class="card">
+    <div class="card-body">
+      <form method="POST">
+        <div class="mb-3">
+          <label for="api_token" class="form-label">Printify API Token</label>
+          <input 
+            type="text" 
+            class="form-control" 
+            id="api_token" 
+            name="api_token" 
+            required
+            value="{{ api_token or '' }}"
+            placeholder="Enter your Printify API token"
+          >
+          <div class="form-text">
+            Get your API token from 
+            <a href="https://printify.com/app/account/api" target="_blank">
+              Printify Account Settings
+            </a>
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <label for="shop_id" class="form-label">Shop ID</label>
+          <input 
+            type="text" 
+            class="form-control" 
+            id="shop_id" 
+            name="shop_id" 
+            required
+            value="{{ shop_id or '' }}"
+            placeholder="Enter your Printify Shop ID"
+          >
+          <div class="form-text">
+            Find your Shop ID in your Printify store URL or settings
+          </div>
+        </div>
+        
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-cloud-download"></i> Start Import
+          </button>
+          <a href="{{ url_for('utilities.index') }}" class="btn btn-secondary">
+            Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <div class="alert alert-warning mt-4">
+    <i class="bi bi-exclamation-triangle"></i>
+    <strong>Note:</strong> This process may take several minutes depending on how many orders need to be imported.
+    The Printify API has rate limits, so large imports might need to be done in batches.
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">Utilities</h1>
+  
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5><i class="bi bi-cloud-download"></i> Printify API Import</h5>
+        </div>
+        <div class="card-body">
+          <p class="card-text">
+            Import missing COGS (Cost of Goods Sold) data directly from the Printify API.
+            This will automatically find orders without COGS and fetch the data from Printify.
+          </p>
+          <a href="{{ url_for('utilities.printify_import') }}" class="btn btn-primary">
+            <i class="bi bi-download"></i> Import from Printify
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
