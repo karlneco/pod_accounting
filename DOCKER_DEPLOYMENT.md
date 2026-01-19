@@ -19,6 +19,10 @@ Create a `.env` file for your deployment configuration:
 DOCKER_REGISTRY=ghcr.io
 DOCKER_IMAGE=yourusername/podaccounting
 IMAGE_TAG=latest
+
+# Optional: if using SQLite + PDF uploads outside the container
+# DATABASE_URL=sqlite:////data/pod_accounting.db
+# EXPENSE_INVOICE_UPLOAD_DIR=/data/expense_invoices
 ```
 
 Update `docker-compose.yml` to use these values, or just replace `yourusername` with your actual GitHub username.

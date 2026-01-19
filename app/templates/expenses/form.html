@@ -27,7 +27,7 @@
         </div>
 
 
-        <form method="post">
+        <form method="post" enctype="multipart/form-data">
             <!-- ► Supplier + Date -->
             <div class="row mb-3">
                 <div class="col-md-4">
@@ -120,6 +120,14 @@
                     class="btn btn-sm btn-outline-primary mb-3">
                 + Add Item
             </button>
+
+            <div class="row mb-3">
+                <div class="col-md-8">
+                    <label class="form-label">Invoice PDFs</label>
+                    <input type="file" name="invoice_pdfs" class="form-control" accept=".pdf" multiple>
+                    <div class="form-text">PDF only. You can upload multiple files.</div>
+                </div>
+            </div>
 
             <!-- ► Live Totals -->
             <div class="mt-4">

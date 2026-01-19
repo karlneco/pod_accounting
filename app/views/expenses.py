@@ -7,14 +7,58 @@ from decimal import Decimal
 
 from flask import (
     Blueprint, render_template, url_for,
-    redirect, flash, request, current_app, jsonify
+    redirect, flash, request, current_app, jsonify, send_from_directory
 )
+from werkzeug.utils import secure_filename
 
-from ..models import db, ExpenseInvoice, Provider, ExpenseItem, Account, Order, ExpenseTemplate, ExpenseTemplateItem
+from ..models import db, ExpenseInvoice, ExpenseInvoiceFile, Provider, ExpenseItem, Account, Order, ExpenseTemplate, ExpenseTemplateItem
 from ..utils.currency import usd_to_cad
 from ..utils.date_filters import get_date_range
 
 bp = Blueprint('expenses', __name__, template_folder='templates/expenses')
+
+
+def _invoice_upload_root():
+    upload_root = current_app.config.get('EXPENSE_INVOICE_UPLOAD_DIR')
+    if not upload_root:
+        raise RuntimeError("EXPENSE_INVOICE_UPLOAD_DIR is not configured")
+    return upload_root
+
+
+def _invoice_dir(invoice_id):
+    return os.path.join(_invoice_upload_root(), str(invoice_id))
+
+
+def _is_pdf(filename):
+    return os.path.splitext(filename)[1].lower() == '.pdf'
+
+
+def _save_invoice_files(invoice_id, files):
+    saved = 0
+    rejected = 0
+    if not files:
+        return saved, rejected
+
+    os.makedirs(_invoice_dir(invoice_id), exist_ok=True)
+
+    for uploaded in files:
+        if not uploaded or not uploaded.filename:
+            continue
+        original = secure_filename(uploaded.filename)
+        if not original or not _is_pdf(original):
+            rejected += 1
+            continue
+        stored_name = f"{uuid.uuid4().hex}.pdf"
+        file_path = os.path.join(_invoice_dir(invoice_id), stored_name)
+        uploaded.save(file_path)
+        db.session.add(ExpenseInvoiceFile(
+            expense_invoice_id=invoice_id,
+            stored_filename=stored_name,
+            original_filename=original
+        ))
+        saved += 1
+
+    return saved, rejected
 
 
 @bp.route('/new', methods=['GET', 'POST'])
@@ -123,8 +167,17 @@ def create_expense():
             ))
 
         ei.total_amount = subtotal + gst
+        saved, rejected = _save_invoice_files(
+            ei.id,
+            request.files.getlist('invoice_pdfs')
+        )
         db.session.commit()
         db.session.flush()
+
+        if rejected:
+            flash(f"{rejected} file(s) were skipped (PDF only).", 'warning')
+        if saved:
+            flash(f"Uploaded {saved} PDF(s).", 'success')
 
         flash("Expense created.", 'success')
         return redirect(url_for('expenses.show_expense', invoice_id=ei.id))
@@ -321,6 +374,38 @@ def confirm_expenses():
 def show_expense(invoice_id):
     invoice = ExpenseInvoice.query.get_or_404(invoice_id)
     return render_template('expenses/detail.html', invoice=invoice)
+
+
+@bp.route('/<int:invoice_id>/files', methods=['POST'])
+def upload_expense_files(invoice_id):
+    invoice = ExpenseInvoice.query.get_or_404(invoice_id)
+    files = request.files.getlist('invoice_pdfs')
+    if not files or all(not f.filename for f in files):
+        flash('Please choose at least one PDF.', 'warning')
+        return redirect(url_for('expenses.show_expense', invoice_id=invoice_id))
+
+    saved, rejected = _save_invoice_files(invoice.id, files)
+    db.session.commit()
+
+    if rejected:
+        flash(f"{rejected} file(s) were skipped (PDF only).", 'warning')
+    if saved:
+        flash(f"Uploaded {saved} PDF(s).", 'success')
+    return redirect(url_for('expenses.show_expense', invoice_id=invoice_id))
+
+
+@bp.route('/<int:invoice_id>/files/<int:file_id>')
+def download_expense_file(invoice_id, file_id):
+    file = ExpenseInvoiceFile.query.filter_by(
+        id=file_id,
+        expense_invoice_id=invoice_id
+    ).first_or_404()
+    return send_from_directory(
+        _invoice_dir(invoice_id),
+        file.stored_filename,
+        as_attachment=True,
+        download_name=file.original_filename
+    )
 
 
 @bp.route('/templates/create', methods=['POST'])

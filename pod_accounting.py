@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import os
+
 from dotenv import load_dotenv
 
 from app import create_app, db
@@ -18,4 +20,6 @@ def create_db():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
+    port = int(os.getenv("FLASK_RUN_PORT", "5050"))
+    app.run(debug=True, host=host, port=port)

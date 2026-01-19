@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
 
@@ -149,6 +151,18 @@ class ExpenseInvoice(db.Model):
 
     provider = db.relationship('Provider', back_populates='expense_invoices')
     items = db.relationship('ExpenseItem', back_populates='invoice', cascade='all, delete-orphan')
+    files = db.relationship('ExpenseInvoiceFile', back_populates='invoice', cascade='all, delete-orphan')
+
+
+class ExpenseInvoiceFile(db.Model):
+    __tablename__ = 'expense_invoice_files'
+    id = db.Column(db.Integer, primary_key=True)
+    expense_invoice_id = db.Column(db.Integer, db.ForeignKey('expense_invoices.id'), nullable=False)
+    stored_filename = db.Column(db.String(256), nullable=False)
+    original_filename = db.Column(db.String(256), nullable=False)
+    uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    invoice = db.relationship('ExpenseInvoice', back_populates='files')
 
 
 class ExpenseItem(db.Model):

@@ -12,3 +12,4 @@ services:
       FLASK_APP: pod_accounting.py
       FLASK_ENV: development
       DATABASE_URL: sqlite:////data/pod_accounting.db  # 4 slashes = absolute path
+      EXPENSE_INVOICE_UPLOAD_DIR: /data/expense_invoices

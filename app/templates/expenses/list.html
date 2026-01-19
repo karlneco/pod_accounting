@@ -28,6 +28,7 @@
         <th>Date</th>
         <th>Provider</th>
         <th>Order #</th>
+        <th>Docs</th>
         <th class="text-end">Total Amount</th>
         <th class="text-end">Total Amount (CAD)</th>
       </tr>
@@ -39,6 +40,17 @@
         <td>{{ inv.invoice_date }}</td>
         <td>{{ inv.provider.name }}</td>
         <td>{{ inv.invoice_number or '–' }}</td>
+        <td>
+          {% if inv.files %}
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-label="PDF" role="img">
+              <path d="M4 0h5.5L14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2z"/>
+              <path d="M9.5 0V4a1 1 0 0 0 1 1h3.5z"/>
+              <path d="M4.5 10.5h1.5a1 1 0 0 0 0-2H4.5v2zm0 1.5V8h1.5a2.5 2.5 0 0 1 0 5H4.5zm4-4h1.5a1.5 1.5 0 0 1 0 3H8.5V12H7V8h1.5zm4 0H15v1h-1.5v1H15v1h-1.5v1H12V8z"/>
+            </svg>
+          {% else %}
+            &ndash;
+          {% endif %}
+        </td>
         <td class="text-end">
           ${{ '{:,.2f}'.format(inv.total_amount) }} {{ inv.provider.currency_code }}
         </td>
@@ -54,8 +66,8 @@
     </tbody>
 <tfoot>
     <tr>
-      <!-- span first 4 columns -->
-      <th colspan="4" class="text-end">Total (CAD)</th>
+      <!-- span first 5 columns -->
+      <th colspan="5" class="text-end">Total (CAD)</th>
       <th class="text-end">
         ${{ '{:,.2f}'.format(total_cad) }}
       </th>
@@ -78,7 +90,7 @@
       searching: false,   // disable the search box
       order: [[0, 'desc']], // default sort by first column (Date) desc
       columnDefs: [
-        { targets: [3, 4], className: 'dt-body-right' }  // right align amount cols
+        { targets: [4, 5], className: 'dt-body-right' }  // right align amount cols
       ]
     });
   });
