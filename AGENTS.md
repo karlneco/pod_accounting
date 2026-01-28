@@ -32,6 +32,6 @@
 - PRs should include a clear description, relevant screenshots for UI changes, and any required `.env` variables.
 
 ## Security & Configuration Tips
-- Store secrets in `.env` (`PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID`, `EXCHANGERATE_HOST_KEY`).
+- Store secrets in `.env` (`PRINTIFY_API_TOKEN`, `PRINTIFY_SHOP_ID`, `OPEN_EXCHANGE_API`).
 - Do not expose the app publicly; there is no authentication layer.
 - Verify financial outputs manually; the app is not hardened for correctness.

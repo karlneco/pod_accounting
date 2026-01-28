@@ -15,10 +15,10 @@ correctness or security - its all on you.**
 **_WARNING_**: At this point there is not even a user login screen so **DO NOT** run this on a  public IP (or even 
 private if you don't fully trust everyone on your private net)
 
-NOTE(s): 
- - This app has _very limited_ multi-currency support.  It does have the ability to look up exchange rates (with
-exchangerate.host) and wants to see your API key with them in the .env file called `EXCHANGERATE_HOST_KEY`.  It's right 
-now hardcoded to work for a Canada based business and will convert only from USD to CAD.
+NOTE(s):
+ - This app has _very limited_ multi-currency support. It does have the ability to look up exchange rates (with
+Open Exchange Rates) and wants to see your API key in the .env file called `OPEN_EXCHANGE_API`. It's right now
+hardcoded to work for a Canada based business and will convert only from USD to CAD.
 
  - This was mostly written with the help of/by AI in like 3 days, so you should be able to feed it to an AI if you want help to add 
 things (make it suffer with what it wrote :) ). It can be used as a reference on how AI can be used to write/create simple yet
