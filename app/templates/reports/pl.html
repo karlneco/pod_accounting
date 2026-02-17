@@ -31,7 +31,7 @@
   {% include "_date_filter.html" %}
 
   <!-- Granularity selector -->
-  <div class="row mb-3">
+  <div class="row mb-3 align-items-end">
     <div class="col-md-3">
       <label for="granularity" class="form-label">Time Granularity</label>
       <select id="granularity" class="form-select" onchange="changeGranularity()">
@@ -39,6 +39,12 @@
         <option value="week" {% if granularity == 'week' %}selected{% endif %}>Weekly</option>
         <option value="day" {% if granularity == 'day' %}selected{% endif %}>Daily</option>
       </select>
+    </div>
+    <div class="col-md-3">
+      <a class="btn btn-outline-primary"
+         href="{{ url_for('reports.pl_report_csv', range=range_key, start=start_date, end=end_date, granularity=granularity) }}">
+        Export to CSV
+      </a>
     </div>
   </div>
 
