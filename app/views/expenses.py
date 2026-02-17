@@ -1,6 +1,7 @@
 import importlib
 import json
 import os
+import shutil
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -383,6 +384,19 @@ def confirm_expenses():
 def show_expense(invoice_id):
     invoice = ExpenseInvoice.query.get_or_404(invoice_id)
     return render_template('expenses/detail.html', invoice=invoice)
+
+
+@bp.route('/<int:invoice_id>/delete', methods=['POST'])
+def delete_expense(invoice_id):
+    invoice = ExpenseInvoice.query.get_or_404(invoice_id)
+    invoice_dir = _invoice_dir(invoice.id)
+
+    db.session.delete(invoice)
+    db.session.commit()
+
+    shutil.rmtree(invoice_dir, ignore_errors=True)
+    flash("Expense deleted.", "success")
+    return redirect(url_for('expenses.list_expenses'))
 
 
 @bp.route('/<int:invoice_id>/files', methods=['POST'])
