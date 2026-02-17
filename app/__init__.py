@@ -1,11 +1,15 @@
 from flask import Flask
 from flask_migrate import Migrate
+from dotenv import load_dotenv
 from .models import db
 from .utils.currency import usd_to_cad
 from .views import customers, providers, orders, costs, ads, expenses, main, products, accounts, reports, utilities
 
 
 def create_app(config_class="config.Config"):
+    # Load local .env values regardless of the entrypoint used to start Flask.
+    load_dotenv()
+
     app = Flask(__name__, instance_relative_config=False)
     app.config.from_object(config_class)
 

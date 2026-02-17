@@ -7,7 +7,7 @@ COMPOSE_FILE="docker-compose.deploy.yml"
 SERVICE_NAME="pod-accounting"
 ROLLBACK_TAG="podaccounting:rollback"
 TARGET_IMAGE="podaccounting:local"
-HEALTH_URL="http://127.0.0.1:5050/healthz"
+HEALTH_URL="http://127.0.0.1:5001/healthz"
 
 export APP_DATA_DIR
 

@@ -21,5 +21,5 @@ def create_db():
 
 if __name__ == "__main__":
     host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
-    port = int(os.getenv("FLASK_RUN_PORT", "5050"))
+    port = int(os.getenv("FLASK_RUN_PORT", "5001"))
     app.run(debug=True, host=host, port=port)

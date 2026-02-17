@@ -3,7 +3,7 @@ services:
     build: .
     image: podaccounting:local
     ports:
-      - "5050:5050"
+      - "5001:5001"
     volumes:
       - ~/Documents/dbs:/data  # Mount volume for SQLite DB
     environment:

@@ -22,4 +22,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Run the app (adjust as needed for gunicorn, etc.)
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5050"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5001"]
