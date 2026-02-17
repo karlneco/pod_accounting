@@ -4,7 +4,7 @@ services:
   web:
     build: .
     ports:
-      - "5001:5001"
+      - "5004:5004"
     volumes:
       - .:/app  # Mount source code for development
       - ~/Documents/dbs:/data  # Mount volume for SQLite DB

@@ -7,7 +7,7 @@ COMPOSE_FILE="docker-compose.deploy.yml"
 SERVICE_NAME="pod-accounting"
 ROLLBACK_TAG="podaccounting:rollback"
 TARGET_IMAGE="podaccounting:local"
-HEALTH_URL="http://127.0.0.1:5001/healthz"
+HEALTH_URL="http://127.0.0.1:5004/healthz"
 
 export APP_DATA_DIR
 
@@ -17,6 +17,17 @@ if [[ ! -f ".env" ]]; then
 fi
 
 docker run --rm -v "${APP_DATA_DIR}:/data" alpine sh -lc 'mkdir -p /data /data/expense_invoices'
+
+# Clean up legacy container name from older compose service config.
+docker rm -f pod_accounting-web-1 >/dev/null 2>&1 || true
+
+# Fail early if the host port is owned by another container/process.
+if docker ps --filter "publish=5004" --format '{{.Names}}' | grep -qv '^pod_accounting-pod-accounting-1$'; then
+  echo "Port 5004 is already in use by another running container:" >&2
+  docker ps --filter "publish=5004" --format '  - {{.Names}} ({{.Ports}})' >&2
+  echo "Stop the conflicting container or change the app port." >&2
+  exit 1
+fi
 
 HAS_ROLLBACK_IMAGE=false
 CURRENT_CONTAINER_ID="$(docker compose -f "${COMPOSE_FILE}" ps -q "${SERVICE_NAME}" || true)"
