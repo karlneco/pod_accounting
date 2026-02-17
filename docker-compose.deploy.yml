@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  pod-accounting:
+    image: podaccounting:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5050:5050"
+    env_file:
+      - ./.env
+    environment:
+      FLASK_APP: pod_accounting.py
+      FLASK_ENV: production
+      DATABASE_URL: sqlite:////data/pod_accounting.db
+      EXPENSE_INVOICE_UPLOAD_DIR: /data/expense_invoices
+    volumes:
+      - ${APP_DATA_DIR}:/data

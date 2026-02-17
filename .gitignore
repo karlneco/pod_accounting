@@ -38,3 +38,7 @@ data/*
 *.db
 *.sqlite3
 *.log
+
+# Local-only tooling files
+deploy.sh
+mypy.ini
