@@ -208,6 +208,7 @@ def list_expenses():
     start_str = request.args.get('start')
     end_str = request.args.get('end')
 
+    provider_id = request.args.get('provider_id', type=int)
     account_id = request.args.get('account_id', type=int)
 
     start = datetime.fromisoformat(start_str).date() if start_str else None
@@ -216,6 +217,8 @@ def list_expenses():
 
     # pull all expense‐invoices with their provider
     q = ExpenseInvoice.query.join(Provider)
+    if provider_id:
+        q = q.filter(ExpenseInvoice.provider_id == provider_id)
     if account_id:
         q = q.join(ExpenseItem).filter(ExpenseItem.account_id == account_id)
     q = q.order_by(ExpenseInvoice.invoice_date.desc())
@@ -223,8 +226,11 @@ def list_expenses():
     if start_date and end_date:
         q = q.filter(ExpenseInvoice.invoice_date.between(start_date, end_date))
 
-    invoices = q.all()
+    invoices = q.distinct().all()
+    provider = Provider.query.get(provider_id) if provider_id else None
     account = Account.query.get(account_id) if account_id else None
+    providers = Provider.query.order_by(Provider.name).all()
+    accounts = Account.query.order_by(Account.name).all()
 
     # compute grand‐total in CAD
     total_cad = 0
@@ -238,6 +244,9 @@ def list_expenses():
     return render_template(
         'expenses/list.html',
         invoices=invoices,
+        providers=providers,
+        accounts=accounts,
+        provider=provider,
         account=account,
         total_cad=total_cad,
         range_key=range_key,

@@ -13,11 +13,71 @@
     </a>
   </div>
 
-{% include "_date_filter.html" %}
+  <form class="row gy-2 gx-3 align-items-center mb-4" method="get">
+    <div class="col-auto">
+      <label class="visually-hidden" for="rangeSelectExpenses">Range</label>
+      <select id="rangeSelectExpenses" name="range" class="form-select">
+        {% set opts = {
+          'today':'Today','yesterday':'Yesterday','this_week':'This Week',
+          'last_week':'Last Week','this_month':'This Month','last_month':'Last Month',
+          'this_quarter':'This Quarter','last_quarter':'Last Quarter',
+          'this_year':'This Year','last_year':'Last Year',
+          'year_to_date':'Year to Date','custom':'Custom'
+        } %}
+        {% for key,label in opts.items() %}
+        <option value="{{ key }}" {% if key==range_key %}selected{% endif %}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-auto custom-dates-expenses" {% if range_key!='custom' %}style="display:none"{% endif %}>
+      <input type="date" name="start" value="{{ start_date or '' }}" class="form-control" />
+    </div>
+    <div class="col-auto custom-dates-expenses" {% if range_key!='custom' %}style="display:none"{% endif %}>
+      <input type="date" name="end" value="{{ end_date or '' }}" class="form-control" />
+    </div>
+
+    <div class="col-auto">
+      <label class="visually-hidden" for="providerSelect">Provider</label>
+      <select id="providerSelect" name="provider_id" class="form-select">
+        <option value="">All providers</option>
+        {% for p in providers %}
+        <option value="{{ p.id }}" {% if provider and provider.id == p.id %}selected{% endif %}>
+          {{ p.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-auto">
+      <label class="visually-hidden" for="accountSelect">Account</label>
+      <select id="accountSelect" name="account_id" class="form-select">
+        <option value="">All accounts</option>
+        {% for a in accounts %}
+        <option value="{{ a.id }}" {% if account and account.id == a.id %}selected{% endif %}>
+          {{ a.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-outline-secondary">Reset</a>
+    </div>
+  </form>
 
 {% if account %}
   <div class="alert alert-info">
     Showing only transactions for account: <strong>{{ account.name }}</strong>
+    <a href="{{ url_for('expenses.list_expenses') }}" class="btn-close float-end"></a>
+  </div>
+{% endif %}
+{% if provider %}
+  <div class="alert alert-info">
+    Showing only transactions for provider: <strong>{{ provider.name }}</strong>
     <a href="{{ url_for('expenses.list_expenses') }}" class="btn-close float-end"></a>
   </div>
 {% endif %}
@@ -83,6 +143,12 @@
 <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
 
 <script>
+  document.getElementById('rangeSelectExpenses').addEventListener('change', function(){
+    const show = this.value === 'custom';
+    document.querySelectorAll('.custom-dates-expenses')
+      .forEach(el => el.style.display = show ? 'inline-block' : 'none');
+  });
+
   $(document).ready(function() {
     $('#expensesTable').DataTable({
       paging: false,      // disable pagination
