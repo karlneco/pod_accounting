@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+
+# Python cache/build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE/editor local state
+.idea/workspace.xml
+.idea/dataSources/
+.idea/dataSources.local.xml
+.idea/csv-editor.xml
+.idea/copilot.data.migration.*.xml
+
+# Local app/runtime data
+app/uploads/*
+!app/uploads/.gitkeep
+data/*
+!data/.gitkeep
+
+# Local databases and logs
+*.db
+*.sqlite3
+*.log
