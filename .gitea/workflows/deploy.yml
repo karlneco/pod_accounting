@@ -13,21 +13,21 @@ on:
 
 jobs:
   deploy:
-    runs-on: docker
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Prepare env file
         env:
-          APP_DATA_DIR: /Volumes/necodata/karl/kozakura/apps_data/pod_accounting
+          APP_DATA_DIR: /srv/apps_data/pod_accounting
         run: |
           docker run --rm -v "${APP_DATA_DIR}:/appdata:ro" alpine sh -lc 'test -f /appdata/.env && cat /appdata/.env' > .env
           test -s .env
 
       - name: Deploy
         env:
-          APP_DATA_DIR: /Volumes/necodata/karl/kozakura/apps_data/pod_accounting
+          APP_DATA_DIR: /srv/apps_data/pod_accounting
         run: |
           NO_CACHE="${{ github.event.inputs.no_cache }}"
           NO_CACHE="${NO_CACHE:-false}"
