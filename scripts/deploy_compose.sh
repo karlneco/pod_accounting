@@ -24,10 +24,15 @@ docker rm -f pod_accounting-web-1 >/dev/null 2>&1 || true
 
 # Fail early if the host port is owned by another container/process.
 CURRENT_SERVICE_CID="$(docker compose -p "${PROJECT_NAME}" -f "${COMPOSE_FILE}" ps -q "${SERVICE_NAME}" || true)"
+CURRENT_SERVICE_CID_FULL=""
+if [[ -n "${CURRENT_SERVICE_CID}" ]]; then
+  CURRENT_SERVICE_CID_FULL="$(docker inspect -f '{{.Id}}' "${CURRENT_SERVICE_CID}" 2>/dev/null || true)"
+fi
 mapfile -t PORT_5004_CIDS < <(docker ps --filter "publish=5004" --format '{{.ID}}')
 if (( ${#PORT_5004_CIDS[@]} > 0 )); then
   for CID in "${PORT_5004_CIDS[@]}"; do
-    if [[ -n "${CURRENT_SERVICE_CID}" && "${CID}" == "${CURRENT_SERVICE_CID}" ]]; then
+    CID_FULL="$(docker inspect -f '{{.Id}}' "${CID}" 2>/dev/null || true)"
+    if [[ -n "${CURRENT_SERVICE_CID_FULL}" && -n "${CID_FULL}" && "${CID_FULL}" == "${CURRENT_SERVICE_CID_FULL}" ]]; then
       continue
     fi
     echo "Port 5004 is already allocated by another running container:" >&2
