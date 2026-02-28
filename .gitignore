@@ -22,6 +22,7 @@ venv/
 env/
 
 # IDE/editor local state
+.idea/
 .idea/workspace.xml
 .idea/dataSources/
 .idea/dataSources.local.xml
