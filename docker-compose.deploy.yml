@@ -1,5 +1,5 @@
 services:
-  pod-accounting:
+  app:
     image: podaccounting:local
     build:
       context: .
