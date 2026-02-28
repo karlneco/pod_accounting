@@ -56,8 +56,19 @@ fi
 
 docker compose -p "${PROJECT_NAME}" -f "${COMPOSE_FILE}" up -d --remove-orphans
 
+check_health_in_container() {
+  local cid
+  cid="$(docker compose -p "${PROJECT_NAME}" -f "${COMPOSE_FILE}" ps -q "${SERVICE_NAME}" || true)"
+  if [[ -z "${cid}" ]]; then
+    return 1
+  fi
+  docker exec "${cid}" python -c \
+    "import urllib.request; urllib.request.urlopen('${HEALTH_URL}', timeout=3).read()" \
+    >/dev/null 2>&1
+}
+
 for attempt in $(seq 1 30); do
-  if curl -fsS "${HEALTH_URL}" >/dev/null; then
+  if check_health_in_container; then
     echo "Deploy healthy."
     exit 0
   fi
@@ -72,7 +83,7 @@ if [[ "${HAS_ROLLBACK_IMAGE}" == "true" ]]; then
   docker image tag "${ROLLBACK_TAG}" "${TARGET_IMAGE}"
   docker compose -p "${PROJECT_NAME}" -f "${COMPOSE_FILE}" up -d --no-build --remove-orphans "${SERVICE_NAME}"
   for attempt in $(seq 1 30); do
-    if curl -fsS "${HEALTH_URL}" >/dev/null 2>&1; then
+    if check_health_in_container; then
       echo "Rollback completed and service is healthy." >&2
       exit 1
     fi
