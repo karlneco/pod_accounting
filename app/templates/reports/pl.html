@@ -1,23 +1,47 @@
 {% extends "base.html" %}
 {% block extra_styles %}
   <style>
-    tbody tr > :first-child {
-      position: sticky;
-      z-index: 1;
-      left: 0;
+    #pl-table-container {
+      width: 100%;
+      overflow-x: auto;
     }
-    tbody th > :first-child {
-      position: sticky;
-      z-index: 1;
-      left: 0;
+
+    #pl-table {
+      width: max-content;
+      min-width: 100%;
     }
-    .sticky-col {
+
+    #pl-table .sticky-col {
       position: sticky;
       left: 0;
       background: white;
       z-index: 2;
       box-shadow: 2px 0 5px -2px #ccc;
-      min-width: 250px;
+      width: 180px;
+      min-width: 180px;
+      max-width: 180px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    #pl-table .total-col {
+      min-width: 140px;
+      position: sticky;
+      right: 0;
+      background: #f8f9fa;
+      z-index: 1;
+      box-shadow: -2px 0 5px -2px #ccc;
+    }
+
+    #pl-table thead .sticky-col,
+    #pl-table thead .total-col {
+      z-index: 3;
+    }
+
+    #pl-table a {
+      display: inline-block;
+      max-width: 100%;
+      overflow-wrap: anywhere;
     }
   </style>
   {% endblock %}
@@ -48,8 +72,8 @@
     </div>
   </div>
 
-  <div id="pl-table-container" style="overflow-x: auto; width: 100%; max-width: 80vw;">
-    <table id="pl-table" class="table table-sm" style="min-width: 800px;">
+  <div id="pl-table-container">
+    <table id="pl-table" class="table table-sm">
       <!-- Header with period columns -->
       <thead class="table-light">
         <tr>
@@ -57,7 +81,7 @@
           {% for col in period_columns %}
           <th class="text-end" style="min-width: 120px;">{{ col.label }}</th>
           {% endfor %}
-          <th class="text-end table-secondary" style="min-width: 140px; position: sticky; right: 0; background: #f8f9fa; z-index: 1;">Total</th>
+          <th class="text-end table-secondary total-col">Total</th>
         </tr>
       </thead>
 
@@ -75,7 +99,7 @@
           {% for col in period_columns %}
           <td class="text-end"><strong>{{ order_counts_by_period.get(col.key, 0) }}</strong></td>
           {% endfor %}
-          <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;"><strong>{{ order_counts_by_period.values() | sum }}</strong></td>
+          <td class="text-end table-secondary total-col"><strong>{{ order_counts_by_period.values() | sum }}</strong></td>
         </tr>
         
         {% for item in income %}
@@ -84,7 +108,7 @@
           {% for col in period_columns %}
           <td class="text-end">${{ '{:,.2f}'.format(item.periods[col.key]) }}</td>
           {% endfor %}
-          <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;">${{ '{:,.2f}'.format(item.total) }}</td>
+          <td class="text-end table-secondary total-col">${{ '{:,.2f}'.format(item.total) }}</td>
         </tr>
         {% endfor %}
         
@@ -93,7 +117,7 @@
           {% for col in period_columns %}
           <th class="text-end">${{ '{:,.2f}'.format(period_totals.income[col.key]) }}</th>
           {% endfor %}
-          <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.income.values() | sum) }}</th>
+          <th class="text-end table-secondary total-col" style="background: #dee2e6;">${{ '{:,.2f}'.format(period_totals.income.values() | sum) }}</th>
         </tr>
       </tbody>
 
@@ -113,7 +137,7 @@
           {% for col in period_columns %}
           <td class="text-end">${{ '{:,.2f}'.format(item.periods[col.key]) }}</td>
           {% endfor %}
-          <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;">${{ '{:,.2f}'.format(item.total) }}</td>
+          <td class="text-end table-secondary total-col">${{ '{:,.2f}'.format(item.total) }}</td>
         </tr>
         {% endfor %}
 
@@ -122,7 +146,7 @@
           {% for col in period_columns %}
           <th class="text-end">${{ '{:,.2f}'.format(period_totals.cogs[col.key]) }}</th>
           {% endfor %}
-          <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.cogs.values() | sum) }}</th>
+          <th class="text-end table-secondary total-col" style="background: #dee2e6;">${{ '{:,.2f}'.format(period_totals.cogs.values() | sum) }}</th>
         </tr>
       </tbody>
 
@@ -133,7 +157,7 @@
           {% for col in period_columns %}
           <th style="background: #d1ecf1;" class="text-end">${{ '{:,.2f}'.format(period_totals.gross_profit[col.key]) }}</th>
           {% endfor %}
-          <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.gross_profit.values() | sum) }}</th>
+          <th class="text-end table-secondary total-col" style="background: #dee2e6;">${{ '{:,.2f}'.format(period_totals.gross_profit.values() | sum) }}</th>
         </tr>
       </tbody>
 
@@ -160,7 +184,7 @@
           {% for col in period_columns %}
           <td class="text-end">${{ '{:,.2f}'.format(item.periods[col.key]) }}</td>
           {% endfor %}
-          <td class="text-end table-secondary" style="position: sticky; right: 0; background: #f8f9fa; z-index: 1;">${{ '{:,.2f}'.format(item.total) }}</td>
+          <td class="text-end table-secondary total-col">${{ '{:,.2f}'.format(item.total) }}</td>
         </tr>
         {% endfor %}
         <tr class="table-light">
@@ -168,7 +192,7 @@
           {% for col in period_columns %}
           <th class="text-end">${{ '{:,.2f}'.format(period_totals.expenses[col.key]) }}</th>
           {% endfor %}
-          <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.expenses.values() | sum) }}</th>
+          <th class="text-end table-secondary total-col" style="background: #dee2e6;">${{ '{:,.2f}'.format(period_totals.expenses.values() | sum) }}</th>
         </tr>
       </tbody>
 
@@ -179,7 +203,7 @@
           {% for col in period_columns %}
           <th  style="background: #343a40; color: white" class="text-end">${{ '{:,.2f}'.format(period_totals.net_profit[col.key]) }}</th>
           {% endfor %}
-          <th class="text-end table-secondary" style="position: sticky; right: 0; background: #dee2e6; z-index: 1;">${{ '{:,.2f}'.format(period_totals.net_profit.values() | sum) }}</th>
+          <th class="text-end table-secondary total-col" style="background: #dee2e6;">${{ '{:,.2f}'.format(period_totals.net_profit.values() | sum) }}</th>
         </tr>
       </tbody>
     </table>
@@ -193,18 +217,5 @@ function changeGranularity() {
     url.searchParams.set('granularity', granularity);
     window.location.href = url.toString();
 }
-
-function setPLTableWidth() {
-  const container = document.getElementById('pl-table-container');
-  const table = document.getElementById('pl-table');
-  if (!container || !table) return;
-  // Make the table 120% of the container width, or at least 800px
-  const minWidth = 800;
-  const newWidth = Math.max(container.offsetWidth * 1.2, minWidth);
-  table.style.width = newWidth + 'px';
-}
-
-window.addEventListener('DOMContentLoaded', setPLTableWidth);
-window.addEventListener('resize', setPLTableWidth);
 </script>
 {% endblock %}
