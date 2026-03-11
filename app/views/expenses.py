@@ -269,7 +269,7 @@ def import_expenses():
             return redirect(url_for('expenses.import_expenses'))
 
         # persist upload
-        upload_dir = os.path.join(current_app.root_path, 'uploads')
+        upload_dir = current_app.config['IMPORT_UPLOAD_DIR']
         os.makedirs(upload_dir, exist_ok=True)
         file_key = f"{uuid.uuid4().hex}.csv"
         file_path = os.path.join(upload_dir, file_key)
@@ -309,7 +309,7 @@ def confirm_expenses():
         return redirect(url_for('expenses.import_expenses'))
 
     # rebuild filepath
-    upload_dir = os.path.join(current_app.root_path, 'uploads')
+    upload_dir = current_app.config['IMPORT_UPLOAD_DIR']
     filepath = os.path.join(upload_dir, file_key)
     if not os.path.exists(filepath):
         flash('Upload expired. Please re-upload.', 'warning')

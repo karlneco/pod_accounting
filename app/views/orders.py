@@ -478,7 +478,7 @@ def import_orders():
             return redirect(url_for('orders.import_orders'))
 
         # save the uploaded file
-        upload_dir = os.path.join(current_app.root_path, 'uploads')
+        upload_dir = current_app.config['IMPORT_UPLOAD_DIR']
         os.makedirs(upload_dir, exist_ok=True)
         file_key = f"{uuid.uuid4().hex}.csv"
         file_path = os.path.join(upload_dir, file_key)
@@ -507,7 +507,7 @@ def confirm_import():
         flash('No import in progress.', 'warning')
         return redirect(url_for('orders.import_orders'))
 
-    upload_dir = os.path.join(current_app.root_path, 'uploads')
+    upload_dir = current_app.config['IMPORT_UPLOAD_DIR']
     file_path = os.path.join(upload_dir, file_key)
     if not os.path.exists(file_path):
         flash('Import session expired. Please re-upload.', 'warning')

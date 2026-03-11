@@ -12,6 +12,15 @@ def _default_expense_invoice_upload_dir():
             return os.path.join(os.path.dirname(db_path), "expense_invoices")
     return os.path.join(default_data_dir, "expense_invoices")
 
+
+def _default_import_upload_dir():
+    db_url = os.getenv("DATABASE_URL", "")
+    if db_url.startswith("sqlite:///"):
+        db_path = db_url.replace("sqlite:///", "", 1)
+        if db_path:
+            return os.path.join(os.path.dirname(db_path), "uploads")
+    return os.path.join(default_data_dir, "uploads")
+
 class Config:
     # Use DATABASE_URL env var or fall back to SQLite file
     SQLALCHEMY_DATABASE_URI = os.getenv(
@@ -23,6 +32,10 @@ class Config:
     EXPENSE_INVOICE_UPLOAD_DIR = os.getenv(
         "EXPENSE_INVOICE_UPLOAD_DIR",
         _default_expense_invoice_upload_dir()
+    )
+    IMPORT_UPLOAD_DIR = os.getenv(
+        "IMPORT_UPLOAD_DIR",
+        _default_import_upload_dir()
     )
     
     # Printify API credentials
