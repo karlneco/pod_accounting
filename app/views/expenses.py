@@ -85,22 +85,38 @@ def create_expense():
             invoice_date = None
             errors.append("Invalid date")
 
-        # Parse line-items
+        # Parse line-items without assuming contiguous indexes.
+        line_item_indexes = sorted(
+            {
+                int(parts[1])
+                for key in request.form.keys()
+                for parts in [key.split('-')]
+                if len(parts) == 3
+                and parts[0] == 'items'
+                and parts[1].isdigit()
+                and parts[2] == 'description'
+            }
+        )
+
         line_items = []
-        idx = 0
-        while True:
-            desc = request.form.get(f"items-{idx}-description")
-            if desc is None:
-                break
-            amt_str = request.form.get(f"items-{idx}-amount", "0").strip()
+        for idx in line_item_indexes:
+            desc = (request.form.get(f"items-{idx}-description") or '').strip()
+            amt_str = (request.form.get(f"items-{idx}-amount") or '').strip()
             acct_id = request.form.get(f"items-{idx}-account_id", type=int)
+
+            if not desc and not amt_str and not acct_id:
+                continue
+
             try:
                 amt = Decimal(amt_str)
             except:
                 amt = None
-                errors.append(f"Line {idx + 1}: invalid amount")
+                errors.append(f"Line {len(line_items) + 1}: invalid amount")
+
+            if not acct_id:
+                errors.append(f"Line {len(line_items) + 1}: account is required")
+
             line_items.append((desc, acct_id, amt))
-            idx += 1
 
         if not line_items:
             errors.append("At least one line item is required")

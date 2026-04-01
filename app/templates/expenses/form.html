@@ -193,6 +193,20 @@
             }
         }
 
+        function renumberItemRows() {
+            const rows = document.querySelectorAll('#items-body tr');
+            rows.forEach((row, index) => {
+                const desc = row.querySelector('input[name$="-description"]');
+                const acct = row.querySelector('select[name$="-account_id"]');
+                const amt = row.querySelector('input[name$="-amount"]');
+
+                if (desc) desc.name = `items-${index}-description`;
+                if (acct) acct.name = `items-${index}-account_id`;
+                if (amt) amt.name = `items-${index}-amount`;
+            });
+            idx = rows.length;
+        }
+
         // === add/remove row logic ===
         let idx = {{ line_items|length }};
         document.getElementById('add-item').addEventListener('click', () => {
@@ -221,6 +235,7 @@
         document.getElementById('items-body').addEventListener('click', e => {
             if (e.target.matches('.remove-item')) {
                 e.target.closest('tr').remove();
+                renumberItemRows();
                 recalcTotals();
             }
         });
@@ -335,6 +350,8 @@
 
         // 2) Save/Update template
         document.getElementById('save-template').addEventListener('click', () => {
+            renumberItemRows();
+
             // gather items
             const data = [];
             document.querySelectorAll('#items-body tr').forEach((tr, i) => {
@@ -386,6 +403,7 @@
 
 
         // initial calc on load
+        renumberItemRows();
         recalcTotals();
 
 
