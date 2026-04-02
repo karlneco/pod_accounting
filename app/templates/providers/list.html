@@ -17,6 +17,7 @@
         <th>Type</th>
         <th>Currency</th>
         <th>Default Account</th>
+        <th>Aliases</th>
         <th>Importer</th>
         <th>Actions</th>
       </tr>
@@ -39,6 +40,7 @@
             <span class="text-danger">(not set)</span>
           {% endif %}
         </td>
+        <td>{{ provider.aliases|length }}</td>
         <td>{{ provider.importer or '-' }}</td>
         <td>
           <a href="{{ url_for('providers.edit_provider', provider_id=provider.id) }}"

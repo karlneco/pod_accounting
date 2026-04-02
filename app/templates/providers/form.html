@@ -68,6 +68,15 @@
     </div>
 
     <div class="mb-3">
+      <label for="aliases_text" class="form-label">Supplier Aliases</label>
+      <textarea class="form-control" id="aliases_text" name="aliases_text"
+                rows="4">{{ form.aliases_text }}</textarea>
+      <div class="form-text">
+        One alias per line. These names are used by the AI PDF importer when matching vendors.
+      </div>
+    </div>
+
+    <div class="mb-3">
       <label for="contact_info" class="form-label">Contact Info</label>
       <textarea class="form-control" id="contact_info" name="contact_info"
                 rows="2">{{ form.contact_info }}</textarea>

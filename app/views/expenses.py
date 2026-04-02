@@ -10,9 +10,36 @@ from flask import (
     Blueprint, render_template, url_for,
     redirect, flash, request, current_app, jsonify, send_from_directory
 )
+from sqlalchemy import func
 from werkzeug.utils import secure_filename
 
-from ..models import db, ExpenseInvoice, ExpenseInvoiceFile, Provider, ExpenseItem, Account, Order, ExpenseTemplate, ExpenseTemplateItem
+from ..models import (
+    db,
+    ExpenseInvoice,
+    ExpenseInvoiceFile,
+    Provider,
+    ExpenseItem,
+    Account,
+    Order,
+    ExpenseTemplate,
+    ExpenseTemplateItem,
+    AIExpenseDocument,
+    AIExpenseBatch,
+)
+from ..services.ai_expense_import import (
+    DOCUMENT_STATUSES,
+    ai_document_path,
+    bulk_delete_documents,
+    delete_document,
+    document_blockers,
+    get_or_create_ai_import_settings,
+    ignore_document,
+    import_document_to_expense,
+    process_document,
+    rerun_document,
+    save_ai_expense_batch,
+    update_document_from_form,
+)
 from ..utils.currency import usd_to_cad
 from ..utils.date_filters import get_date_range
 
@@ -32,6 +59,18 @@ def _invoice_dir(invoice_id):
 
 def _is_pdf(filename):
     return os.path.splitext(filename)[1].lower() == '.pdf'
+
+
+def _ai_status_counts():
+    counts = {status: 0 for status in DOCUMENT_STATUSES}
+    rows = (
+        db.session.query(AIExpenseDocument.status, func.count(AIExpenseDocument.id))
+        .group_by(AIExpenseDocument.status)
+        .all()
+    )
+    for status, count in rows:
+        counts[status] = count
+    return counts
 
 
 def _save_invoice_files(invoice_id, files):
@@ -313,7 +352,156 @@ def import_expenses():
         )
 
     # GET: show import form
-    return render_template('expenses/import.html', providers=providers)
+    return render_template(
+        'expenses/import.html',
+        providers=providers,
+        ai_status_counts=_ai_status_counts()
+    )
+
+
+@bp.route('/import/ai', methods=['POST'])
+def import_expenses_ai():
+    provider_hint_id = request.form.get('provider_hint_id', type=int)
+    uploaded_files = request.files.getlist('files')
+
+    valid_files = [
+        uploaded for uploaded in uploaded_files
+        if uploaded and uploaded.filename and _is_pdf(uploaded.filename)
+    ]
+    if not valid_files:
+        flash('At least one PDF is required for AI import.', 'warning')
+        return redirect(url_for('expenses.import_expenses'))
+
+    batch, documents = save_ai_expense_batch(valid_files, provider_hint_id=provider_hint_id)
+    if batch is None:
+        flash('No valid PDFs were uploaded.', 'warning')
+        return redirect(url_for('expenses.import_expenses'))
+
+    flash(f'Queued {len(documents)} PDF(s) for AI review.', 'success')
+    return redirect(url_for('expenses.ai_review_bucket'))
+
+
+@bp.route('/review-bucket')
+def ai_review_bucket():
+    status = request.args.get('status', '').strip()
+    batch_id = request.args.get('batch_id', type=int)
+
+    query = AIExpenseDocument.query.order_by(AIExpenseDocument.uploaded_at.desc(), AIExpenseDocument.id.desc())
+    if status and status in DOCUMENT_STATUSES:
+        query = query.filter(AIExpenseDocument.status == status)
+    if batch_id:
+        query = query.filter(AIExpenseDocument.batch_id == batch_id)
+
+    documents = query.all()
+    return render_template(
+        'expenses/ai_review_list.html',
+        documents=documents,
+        status=status,
+        batch_id=batch_id,
+        status_counts=_ai_status_counts(),
+        statuses=DOCUMENT_STATUSES,
+    )
+
+
+@bp.route('/review-bucket/<int:document_id>')
+def ai_review_detail(document_id):
+    document = AIExpenseDocument.query.get_or_404(document_id)
+    providers = Provider.query.order_by(Provider.name).all()
+    blockers = document_blockers(document)
+    return render_template(
+        'expenses/ai_review_detail.html',
+        document=document,
+        providers=providers,
+        blockers=blockers,
+    )
+
+
+@bp.route('/review-bucket/<int:document_id>/save', methods=['POST'])
+def ai_review_save(document_id):
+    document = AIExpenseDocument.query.get_or_404(document_id)
+    update_document_from_form(document, request.form)
+    flash('Draft updated.', 'success')
+    return redirect(url_for('expenses.ai_review_detail', document_id=document_id))
+
+
+@bp.route('/review-bucket/<int:document_id>/rerun', methods=['POST'])
+def ai_review_rerun(document_id):
+    document = AIExpenseDocument.query.get_or_404(document_id)
+    rerun_document(document)
+    flash('Document re-queued for AI extraction.', 'success')
+    return redirect(url_for('expenses.ai_review_detail', document_id=document_id))
+
+
+@bp.route('/review-bucket/<int:document_id>/ignore', methods=['POST'])
+def ai_review_ignore(document_id):
+    document = AIExpenseDocument.query.get_or_404(document_id)
+    ignore_document(document)
+    flash('Document ignored.', 'success')
+    return redirect(url_for('expenses.ai_review_bucket'))
+
+
+@bp.route('/review-bucket/<int:document_id>/delete', methods=['POST'])
+def ai_review_delete(document_id):
+    document = AIExpenseDocument.query.get_or_404(document_id)
+    try:
+        delete_document(document)
+    except ValueError as exc:
+        flash(str(exc), 'warning')
+        return redirect(url_for('expenses.ai_review_detail', document_id=document_id))
+
+    flash('Draft deleted from the review bucket.', 'success')
+    return redirect(url_for('expenses.ai_review_bucket'))
+
+
+@bp.route('/review-bucket/clear', methods=['POST'])
+def ai_review_clear():
+    statuses = request.form.getlist('statuses')
+    deleted = bulk_delete_documents(statuses)
+    if deleted:
+        flash(f'Deleted {deleted} document(s) from the review bucket.', 'success')
+    else:
+        flash('No matching documents were deleted.', 'warning')
+    return redirect(url_for('expenses.ai_review_bucket'))
+
+
+@bp.route('/review-bucket/<int:document_id>/import', methods=['POST'])
+def ai_review_import(document_id):
+    document = AIExpenseDocument.query.get_or_404(document_id)
+    try:
+        invoice = import_document_to_expense(document)
+        db.session.commit()
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), 'warning')
+        return redirect(url_for('expenses.ai_review_detail', document_id=document_id))
+
+    flash('AI expense imported.', 'success')
+    return redirect(url_for('expenses.show_expense', invoice_id=invoice.id))
+
+
+@bp.route('/review-bucket/<int:document_id>/process', methods=['POST'])
+def ai_review_process(document_id):
+    document = AIExpenseDocument.query.get_or_404(document_id)
+    if document.status not in {'queued', 'failed'}:
+        flash('Only queued or failed documents can be processed directly.', 'warning')
+        return redirect(url_for('expenses.ai_review_detail', document_id=document_id))
+
+    if process_document(document.id):
+        flash('Document processed.', 'success')
+    else:
+        flash('Document processing failed. Check the last error.', 'warning')
+    return redirect(url_for('expenses.ai_review_detail', document_id=document_id))
+
+
+@bp.route('/review-bucket/<int:document_id>/file')
+def ai_review_download(document_id):
+    document = AIExpenseDocument.query.get_or_404(document_id)
+    return send_from_directory(
+        os.path.dirname(ai_document_path(document)),
+        os.path.basename(ai_document_path(document)),
+        as_attachment=True,
+        download_name=document.original_filename
+    )
 
 
 @bp.route('/import/confirm', methods=['POST'])

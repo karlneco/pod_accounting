@@ -3,60 +3,126 @@
 {% block content %}
 <div class="container mt-5">
   <h1 class="mb-4">Import Expenses</h1>
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">CSV Import</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <span class="me-2">Quick select:</span>
+            {% for name in ['Printify', 'Meta'] %}
+              {% set qp = providers | selectattr('name', 'equalto', name) | first %}
+              {% if qp %}
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary select-provider-btn me-2"
+                  data-provider-id="{{ qp.id }}"
+                >
+                  {{ qp.name }}
+                </button>
+              {% endif %}
+            {% endfor %}
+          </div>
 
-  <div class="mb-3">
-    <span class="me-2">Quick select:</span>
-    {% for name in ['Printify', 'Meta'] %}
-      {% set qp = providers | selectattr('name', 'equalto', name) | first %}
-      {% if qp %}
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-secondary select-provider-btn me-2"
-          data-provider-id="{{ qp.id }}"
-        >
-          {{ qp.name }}
-        </button>
-      {% endif %}
-    {% endfor %}
+          <form method="post"
+                action="{{ url_for('expenses.import_expenses') }}"
+                enctype="multipart/form-data">
+            <div class="mb-3">
+              <label for="provider_id" class="form-label">Supplier</label>
+              <select class="form-select" id="provider_id" name="provider_id" required>
+                <option value="" disabled selected>Select Supplier...</option>
+                {% for provider in providers %}
+                <option value="{{ provider.id }}">{{ provider.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label for="file" class="form-label">CSV File</label>
+              <input class="form-control"
+                     type="file"
+                     id="file"
+                     name="file"
+                     accept=".csv"
+                     required>
+            </div>
+
+            <button id="submit-btn" type="submit" class="btn btn-primary">
+              Upload &amp; Verify
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">AI PDF Intake</h5>
+          <a href="{{ url_for('expenses.ai_review_bucket') }}" class="btn btn-sm btn-outline-secondary">Review Bucket</a>
+        </div>
+        <div class="card-body">
+          <p class="text-muted">
+            Upload one or more PDF invoices. Each PDF is queued for AI extraction and lands in the review bucket before import.
+          </p>
+
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            {% for status, count in ai_status_counts.items() %}
+              <span class="badge text-bg-light border">{{ status.replace('_', ' ') }}: {{ count }}</span>
+            {% endfor %}
+          </div>
+
+          <form method="post"
+                action="{{ url_for('expenses.import_expenses_ai') }}"
+                enctype="multipart/form-data">
+            <div class="mb-3">
+              <label for="provider_hint_id" class="form-label">Supplier Hint</label>
+              <select class="form-select" id="provider_hint_id" name="provider_hint_id">
+                <option value="">Let AI choose from all suppliers</option>
+                {% for provider in providers %}
+                <option value="{{ provider.id }}">{{ provider.name }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Optional. This only biases matching and does not force the result.</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="files" class="form-label">PDF Files</label>
+              <input class="form-control"
+                     type="file"
+                     id="files"
+                     name="files"
+                     accept=".pdf"
+                     multiple
+                     required>
+            </div>
+
+            <button id="ai-submit-btn" type="submit" class="btn btn-primary">
+              Queue PDFs
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <form method="post"
-        action="{{ url_for('expenses.import_expenses') }}"
-        enctype="multipart/form-data">
-    <div class="mb-3">
-      <label for="provider_id" class="form-label">Supplier</label>
-      <select class="form-select" id="provider_id" name="provider_id" required>
-        <option value="" disabled selected>Select Supplier...</option>
-        {% for provider in providers %}
-        <option value="{{ provider.id }}">{{ provider.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="mb-3">
-      <label for="file" class="form-label">CSV File</label>
-      <input class="form-control"
-             type="file"
-             id="file"
-             name="file"
-             accept=".csv"
-             required>
-    </div>
-
-    <button id="submit-btn" type="submit" class="btn btn-primary">
-      Upload &amp; Verify
-    </button>
+  <div class="mt-3">
     <a href="{{ url_for('expenses.list_expenses') }}"
-       class="btn btn-secondary ms-2">
+       class="btn btn-secondary">
       Cancel
     </a>
-  </form>
+  </div>
 </div>
 
 <script>
   // disable button on submit to prevent double‐posts
-  document.querySelector('form').addEventListener('submit', function(){
-    document.getElementById('submit-btn').disabled = true;
+  document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function(){
+      const submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+    });
   });
 
     // When you click a quick-select button, set the dropdown value

@@ -2,6 +2,8 @@ services:
   web:
     build: .
     image: podaccounting:local
+    env_file:
+      - ./.env
     ports:
       - "5004:5004"
     volumes:
@@ -9,6 +11,9 @@ services:
     environment:
       FLASK_APP: pod_accounting.py
       FLASK_ENV: production
+      FLASK_RUN_HOST: 0.0.0.0
+      FLASK_RUN_PORT: "5004"
       DATABASE_URL: sqlite:////data/pod_accounting.db  # 4 slashes = absolute path
       EXPENSE_INVOICE_UPLOAD_DIR: /data/expense_invoices
+      AI_EXPENSE_IMPORT_UPLOAD_DIR: /data/ai_expense_imports
     restart: unless-stopped

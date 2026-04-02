@@ -6,6 +6,7 @@ from flask import Blueprint, render_template, request, flash, redirect, url_for,
 from sqlalchemy import cast, String
 
 from ..models import db, Order, ExpenseInvoice, ExpenseItem, Provider, Account
+from ..services.ai_expense_import import get_or_create_ai_import_settings
 from ..utils.currency import usd_to_cad
 
 bp = Blueprint('utilities', __name__, template_folder='templates/utilities')
@@ -15,6 +16,27 @@ bp = Blueprint('utilities', __name__, template_folder='templates/utilities')
 def index():
     """Utilities dashboard with various utility options"""
     return render_template('utilities/index.html')
+
+
+@bp.route('/ai-import-settings', methods=['GET', 'POST'])
+def ai_import_settings():
+    settings = get_or_create_ai_import_settings()
+
+    if request.method == 'POST':
+        model_name = request.form.get('model_name', '').strip() or 'gpt-4o'
+        max_retry_count = request.form.get('max_retry_count', type=int)
+        if max_retry_count is None or max_retry_count < 1:
+            flash('Max retry count must be at least 1.', 'warning')
+            return render_template('utilities/ai_import_settings.html', settings=settings)
+
+        settings.model_name = model_name
+        settings.auto_import_confident = bool(request.form.get('auto_import_confident'))
+        settings.max_retry_count = max_retry_count
+        db.session.commit()
+        flash('AI import settings updated.', 'success')
+        return redirect(url_for('utilities.ai_import_settings'))
+
+    return render_template('utilities/ai_import_settings.html', settings=settings)
 
 
 @bp.route('/printify-import', methods=['GET', 'POST'])

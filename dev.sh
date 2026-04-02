@@ -18,11 +18,13 @@ export FLASK_ENV=development
 # Optional—but recommended—overrides
 export SECRET_KEY=${SECRET_KEY:-"dev-secret-key"}
 export DATABASE_URL=${DATABASE_URL:-"sqlite:///$(pwd)/data/pod_accounting.db"}
+export AI_EXPENSE_IMPORT_UPLOAD_DIR=${AI_EXPENSE_IMPORT_UPLOAD_DIR:-"$(pwd)/data/ai_expense_imports"}
 
 echo "FLASK_APP=$FLASK_APP"
 echo "FLASK_ENV=$FLASK_ENV"
 echo "Using SECRET_KEY=${SECRET_KEY}"
 echo "Using DATABASE_URL=${DATABASE_URL}"
+echo "Using AI_EXPENSE_IMPORT_UPLOAD_DIR=${AI_EXPENSE_IMPORT_UPLOAD_DIR}"
 
 # Launch!
 exec python pod_accounting.py

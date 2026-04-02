@@ -21,6 +21,22 @@
         </div>
       </div>
     </div>
+
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5><i class="bi bi-robot"></i> AI Expense Import Settings</h5>
+        </div>
+        <div class="card-body">
+          <p class="card-text">
+            Configure the model and queue behavior used by the AI PDF expense intake worker.
+          </p>
+          <a href="{{ url_for('utilities.ai_import_settings') }}" class="btn btn-primary">
+            <i class="bi bi-sliders"></i> Open Settings
+          </a>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

@@ -4,6 +4,7 @@ from flask import (
     redirect, url_for, flash, current_app
 )
 from app.models import Provider, Currency, Account, db
+from app.services.ai_expense_import import provider_aliases_text, sync_provider_aliases
 
 bp = Blueprint('providers', __name__, template_folder='templates/providers')
 
@@ -27,6 +28,7 @@ def _form_context(provider=None, form_data=None):
         'default_account_id': provider.default_account_id if provider else None,
         'contact_info': provider.contact_info if provider else '',
         'notes': provider.notes if provider else '',
+        'aliases_text': provider_aliases_text(provider) if provider else '',
     }
     # override from explicit form_data if present
     if form_data:
@@ -69,6 +71,8 @@ def create_provider():
             notes=form.get('notes', '').strip()
         )
         db.session.add(p)
+        db.session.flush()
+        sync_provider_aliases(p, form.get('aliases_text', ''))
         db.session.commit()
         flash(f'Provider "{name}" created.', 'success')
         return redirect(url_for('providers.list_providers'))
@@ -102,6 +106,7 @@ def edit_provider(provider_id):
         provider.default_account_id = form.get('default_account_id', type=int)
         provider.contact_info = form.get('contact_info', '').strip()
         provider.notes = form.get('notes', '').strip()
+        sync_provider_aliases(provider, form.get('aliases_text', ''))
         db.session.commit()
 
         flash(f'Provider "{name}" updated.', 'success')

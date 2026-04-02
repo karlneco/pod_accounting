@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="mb-1">AI Draft #{{ document.id }}</h1>
+      <p class="text-muted mb-0">{{ document.original_filename }}</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('expenses.ai_review_download', document_id=document.id) }}" class="btn btn-outline-secondary">Download PDF</a>
+      <a href="{{ url_for('expenses.ai_review_bucket') }}" class="btn btn-secondary">Back to Bucket</a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <form method="post" action="{{ url_for('expenses.ai_review_save', document_id=document.id) }}">
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">Invoice Draft</h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Matched Supplier</label>
+                <select name="matched_provider_id" class="form-select">
+                  <option value="">-- choose supplier --</option>
+                  {% for provider in providers %}
+                    <option value="{{ provider.id }}" {% if document.matched_provider_id == provider.id %}selected{% endif %}>
+                      {{ provider.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Raw Supplier Name</label>
+                <input type="text" name="raw_supplier_name" class="form-control" value="{{ document.raw_supplier_name or '' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Invoice Date</label>
+                <input type="date" name="invoice_date" class="form-control" value="{{ document.invoice_date.isoformat() if document.invoice_date else '' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Invoice #</label>
+                <input type="text" name="invoice_number" class="form-control" value="{{ document.invoice_number or '' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Supplier Invoice #</label>
+                <input type="text" name="supplier_invoice" class="form-control" value="{{ document.supplier_invoice or '' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Currency</label>
+                <input type="text" name="currency_code" class="form-control" maxlength="3" value="{{ document.currency_code or '' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Subtotal</label>
+                <input type="text" name="subtotal_amount" class="form-control" value="{{ document.subtotal_amount if document.subtotal_amount is not none else '' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Tax</label>
+                <input type="text" name="tax_amount" class="form-control" value="{{ document.tax_amount if document.tax_amount is not none else '' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Total</label>
+                <input type="text" name="total_amount" class="form-control" value="{{ document.total_amount if document.total_amount is not none else '' }}">
+              </div>
+            </div>
+
+            <hr>
+
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="mb-0">Line Items</h6>
+              <button type="button" id="add-item" class="btn btn-sm btn-outline-primary">Add Item</button>
+            </div>
+
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th class="text-end">Amount</th>
+                  <th>Tax</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="items-body">
+                {% for item in document.items %}
+                  <tr>
+                    <td><input type="text" class="form-control" name="items-{{ loop.index0 }}-description" value="{{ item.description }}"></td>
+                    <td><input type="text" class="form-control text-end" name="items-{{ loop.index0 }}-amount" value="{{ item.amount }}"></td>
+                    <td class="text-center"><input type="checkbox" class="form-check-input" name="items-{{ loop.index0 }}-is_tax" {% if item.is_tax %}checked{% endif %}></td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger remove-item">Remove</button></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+
+            <div class="row g-3 mt-2">
+              <div class="col-md-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="provider_uncertain" name="provider_uncertain" {% if document.provider_uncertain %}checked{% endif %}>
+                  <label class="form-check-label" for="provider_uncertain">Supplier uncertain</label>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="line_items_incomplete" name="line_items_incomplete" {% if document.line_items_incomplete %}checked{% endif %}>
+                  <label class="form-check-label" for="line_items_incomplete">Line items incomplete</label>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="totals_mismatch" name="totals_mismatch" {% if document.totals_mismatch %}checked{% endif %}>
+                  <label class="form-check-label" for="totals_mismatch">Totals mismatch</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Save Draft</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Status</h5>
+        </div>
+        <div class="card-body">
+          <p><strong>Current status:</strong> {{ document.status.replace('_', ' ') }}</p>
+          <p><strong>Attempts:</strong> {{ document.attempt_count }}</p>
+          {% if document.duplicate_expense_invoice %}
+            <p><strong>Duplicate match:</strong>
+              <a href="{{ url_for('expenses.show_expense', invoice_id=document.duplicate_expense_invoice.id) }}">
+                Expense {{ document.duplicate_expense_invoice.invoice_number or document.duplicate_expense_invoice.id }}
+              </a>
+            </p>
+          {% endif %}
+          {% if document.imported_expense_invoice %}
+            <p><strong>Imported expense:</strong>
+              <a href="{{ url_for('expenses.show_expense', invoice_id=document.imported_expense_invoice.id) }}">
+                Expense {{ document.imported_expense_invoice.invoice_number or document.imported_expense_invoice.id }}
+              </a>
+            </p>
+          {% endif %}
+          {% if document.last_error %}
+            <div class="alert alert-danger mb-0">
+              <strong>Last error:</strong><br>
+              {{ document.last_error }}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Import Readiness</h5>
+        </div>
+        <div class="card-body">
+          {% if blockers %}
+            <ul class="mb-0">
+              {% for blocker in blockers %}
+                <li>{{ blocker }}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="alert alert-success mb-0">Ready to import.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="d-grid gap-2">
+        <form method="post" action="{{ url_for('expenses.ai_review_import', document_id=document.id) }}">
+          <button type="submit" class="btn btn-success w-100" {% if blockers %}disabled{% endif %}>Import Expense</button>
+        </form>
+        <form method="post" action="{{ url_for('expenses.ai_review_rerun', document_id=document.id) }}">
+          <button type="submit" class="btn btn-outline-primary w-100">Re-queue for AI</button>
+        </form>
+        {% if document.status in ['queued', 'failed'] %}
+          <form method="post" action="{{ url_for('expenses.ai_review_process', document_id=document.id) }}">
+            <button type="submit" class="btn btn-outline-secondary w-100">Process Now</button>
+          </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('expenses.ai_review_ignore', document_id=document.id) }}">
+          <button type="submit" class="btn btn-outline-danger w-100">Ignore Document</button>
+        </form>
+        {% if document.status != 'imported' %}
+          <form method="post" action="{{ url_for('expenses.ai_review_delete', document_id=document.id) }}" onsubmit="return confirm('Delete this draft and its uploaded PDF from the review bucket?');">
+            <button type="submit" class="btn btn-danger w-100">Delete Draft</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function renumberItems() {
+    document.querySelectorAll('#items-body tr').forEach((row, index) => {
+      row.querySelector('[name$="-description"]').name = `items-${index}-description`;
+      row.querySelector('[name$="-amount"]').name = `items-${index}-amount`;
+      row.querySelector('[name$="-is_tax"]').name = `items-${index}-is_tax`;
+    });
+  }
+
+  document.getElementById('add-item').addEventListener('click', () => {
+    const tbody = document.getElementById('items-body');
+    const index = tbody.querySelectorAll('tr').length;
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><input type="text" class="form-control" name="items-${index}-description"></td>
+      <td><input type="text" class="form-control text-end" name="items-${index}-amount"></td>
+      <td class="text-center"><input type="checkbox" class="form-check-input" name="items-${index}-is_tax"></td>
+      <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger remove-item">Remove</button></td>
+    `;
+    tbody.appendChild(row);
+  });
+
+  document.getElementById('items-body').addEventListener('click', event => {
+    if (!event.target.matches('.remove-item')) return;
+    event.target.closest('tr').remove();
+    renumberItems();
+  });
+</script>
+{% endblock %}

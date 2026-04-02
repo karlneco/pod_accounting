@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="mb-1">AI Review Bucket</h1>
+      <p class="text-muted mb-0">Queued and extracted PDFs waiting for review, rerun, or import.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <form method="post" action="{{ url_for('expenses.ai_review_clear') }}" class="d-inline">
+        <input type="hidden" name="statuses" value="failed">
+        <button type="submit" class="btn btn-outline-danger" {% if not status_counts['failed'] %}disabled{% endif %}>
+          Clear Failed
+        </button>
+      </form>
+      <form method="post" action="{{ url_for('expenses.ai_review_clear') }}" class="d-inline">
+        <input type="hidden" name="statuses" value="ignored">
+        <button type="submit" class="btn btn-outline-danger" {% if not status_counts['ignored'] %}disabled{% endif %}>
+          Clear Ignored
+        </button>
+      </form>
+      <a href="{{ url_for('expenses.import_expenses') }}" class="btn btn-outline-secondary">Upload More PDFs</a>
+      <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-secondary">Back to Expenses</a>
+    </div>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="{{ url_for('expenses.ai_review_bucket') }}"
+       class="btn btn-sm {% if not status %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      all
+    </a>
+    {% for name in statuses %}
+      <a href="{{ url_for('expenses.ai_review_bucket', status=name) }}"
+         class="btn btn-sm {% if status == name %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        {{ name.replace('_', ' ') }} ({{ status_counts[name] }})
+      </a>
+    {% endfor %}
+  </div>
+
+  {% if documents %}
+    <div class="table-responsive">
+      <table class="table table-striped align-middle">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Status</th>
+            <th>Filename</th>
+            <th>Supplier</th>
+            <th>Date</th>
+            <th>Total</th>
+            <th>Flags</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for document in documents %}
+            <tr>
+              <td>{{ document.id }}</td>
+              <td><span class="badge text-bg-light border">{{ document.status.replace('_', ' ') }}</span></td>
+              <td>{{ document.original_filename }}</td>
+              <td>{{ document.matched_provider.name if document.matched_provider else document.raw_supplier_name or '–' }}</td>
+              <td>{{ document.invoice_date or '–' }}</td>
+              <td>
+                {% if document.total_amount is not none %}
+                  ${{ '{:,.2f}'.format(document.total_amount) }} {{ document.currency_code or '' }}
+                {% else %}
+                  –
+                {% endif %}
+              </td>
+              <td>
+                {% if document.provider_uncertain %}<span class="badge text-bg-warning">supplier</span>{% endif %}
+                {% if document.line_items_incomplete %}<span class="badge text-bg-warning">lines</span>{% endif %}
+                {% if document.totals_mismatch %}<span class="badge text-bg-danger">totals</span>{% endif %}
+                {% if document.possible_duplicate %}<span class="badge text-bg-danger">duplicate</span>{% endif %}
+                {% if document.last_error %}<span class="badge text-bg-danger">error</span>{% endif %}
+              </td>
+              <td class="text-end">
+                <div class="d-inline-flex gap-1">
+                  <a href="{{ url_for('expenses.ai_review_detail', document_id=document.id) }}" class="btn btn-sm btn-primary">Open</a>
+                  {% if document.status != 'imported' %}
+                    <form method="post" action="{{ url_for('expenses.ai_review_delete', document_id=document.id) }}" onsubmit="return confirm('Delete this draft and its uploaded PDF from the review bucket?');">
+                      <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="alert alert-info">No documents found for this filter.</div>
+  {% endif %}
+</div>
+{% endblock %}

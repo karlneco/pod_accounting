@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
 COPY . .
+RUN chmod +x /app/docker-entrypoint.sh
 
-# Run the app (adjust as needed for gunicorn, etc.)
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5004"]
+# Run the web app and the AI worker in one container.
+CMD ["/app/docker-entrypoint.sh"]

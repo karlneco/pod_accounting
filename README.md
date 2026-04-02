@@ -24,3 +24,6 @@ hardcoded to work for a Canada based business and will convert only from USD to 
 things (make it suffer with what it wrote :) ). It can be used as a reference on how AI can be used to write/create simple yet
 usefull apps.  That being said - if you don't have at least a basic understanding of coding you'll probably not find this of
 any use as its design to do what I want with no consideration for anyone else.
+
+ - AI PDF expense intake requires `OPENAI_API_KEY`. The app now supports a review bucket for PDF receipts/invoices, with a worker
+   running alongside Flask in Docker to process queued PDFs one at a time.

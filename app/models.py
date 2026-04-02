@@ -46,6 +46,23 @@ class Provider(db.Model):
 
     default_account = db.relationship('Account', foreign_keys=[default_account_id])
     expense_invoices = db.relationship('ExpenseInvoice', back_populates='provider', cascade='all, delete-orphan')
+    aliases = db.relationship('ProviderAlias', back_populates='provider', cascade='all, delete-orphan', order_by='ProviderAlias.alias')
+
+
+class ProviderAlias(db.Model):
+    __tablename__ = 'provider_aliases'
+    __table_args__ = (
+        db.UniqueConstraint('provider_id', 'normalized_alias', name='uq_provider_aliases_provider_id_normalized_alias'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    provider_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=False)
+    alias = db.Column(db.String(128), nullable=False)
+    normalized_alias = db.Column(db.String(128), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    provider = db.relationship('Provider', back_populates='aliases')
 
 
 class Currency(db.Model):
@@ -204,3 +221,85 @@ class ExpenseTemplateItem(db.Model):
     order = db.Column(db.Integer, nullable=False)
     template = db.relationship('ExpenseTemplate', back_populates='items')
     account = db.relationship('Account')
+
+
+class AIImportSettings(db.Model):
+    __tablename__ = 'ai_import_settings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    model_name = db.Column(db.String(64), nullable=False, default='gpt-4o-mini')
+    auto_import_confident = db.Column(db.Boolean, nullable=False, default=False)
+    max_retry_count = db.Column(db.Integer, nullable=False, default=3)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AIExpenseBatch(db.Model):
+    __tablename__ = 'ai_expense_batches'
+
+    id = db.Column(db.Integer, primary_key=True)
+    provider_hint_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=True)
+    uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    provider_hint = db.relationship('Provider', foreign_keys=[provider_hint_id])
+    documents = db.relationship('AIExpenseDocument', back_populates='batch', cascade='all, delete-orphan', order_by='AIExpenseDocument.id')
+
+
+class AIExpenseDocument(db.Model):
+    __tablename__ = 'ai_expense_documents'
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey('ai_expense_batches.id'), nullable=False)
+    status = db.Column(
+        db.Enum('queued', 'processing', 'needs_review', 'failed', 'imported', 'ignored', name='ai_expense_document_statuses'),
+        nullable=False,
+        default='queued'
+    )
+    original_filename = db.Column(db.String(256), nullable=False)
+    stored_filename = db.Column(db.String(256), nullable=False)
+    provider_hint_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=True)
+    matched_provider_id = db.Column(db.Integer, db.ForeignKey('providers.id'), nullable=True)
+    duplicate_expense_invoice_id = db.Column(db.Integer, db.ForeignKey('expense_invoices.id'), nullable=True)
+    imported_expense_invoice_id = db.Column(db.Integer, db.ForeignKey('expense_invoices.id'), nullable=True)
+    attempt_count = db.Column(db.Integer, nullable=False, default=0)
+    last_error = db.Column(db.Text)
+    raw_supplier_name = db.Column(db.String(256))
+    invoice_date = db.Column(db.Date)
+    invoice_number = db.Column(db.String(64))
+    supplier_invoice = db.Column(db.String(64))
+    currency_code = db.Column(db.String(3), nullable=True)
+    subtotal_amount = db.Column(db.Numeric(12, 2))
+    tax_amount = db.Column(db.Numeric(12, 2))
+    total_amount = db.Column(db.Numeric(12, 2))
+    provider_uncertain = db.Column(db.Boolean, nullable=False, default=False)
+    line_items_incomplete = db.Column(db.Boolean, nullable=False, default=False)
+    totals_mismatch = db.Column(db.Boolean, nullable=False, default=False)
+    possible_duplicate = db.Column(db.Boolean, nullable=False, default=False)
+    raw_response_json = db.Column(db.Text)
+    uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    batch = db.relationship('AIExpenseBatch', back_populates='documents')
+    provider_hint = db.relationship('Provider', foreign_keys=[provider_hint_id])
+    matched_provider = db.relationship('Provider', foreign_keys=[matched_provider_id])
+    duplicate_expense_invoice = db.relationship('ExpenseInvoice', foreign_keys=[duplicate_expense_invoice_id])
+    imported_expense_invoice = db.relationship('ExpenseInvoice', foreign_keys=[imported_expense_invoice_id])
+    items = db.relationship(
+        'AIExpenseDocumentItem',
+        back_populates='document',
+        cascade='all, delete-orphan',
+        order_by='AIExpenseDocumentItem.sort_order'
+    )
+
+
+class AIExpenseDocumentItem(db.Model):
+    __tablename__ = 'ai_expense_document_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    document_id = db.Column(db.Integer, db.ForeignKey('ai_expense_documents.id'), nullable=False)
+    description = db.Column(db.String(256), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    is_tax = db.Column(db.Boolean, nullable=False, default=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+    document = db.relationship('AIExpenseDocument', back_populates='items')
