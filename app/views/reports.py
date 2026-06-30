@@ -230,6 +230,9 @@ def _build_pl_report_data(start_date, end_date, granularity):
 
         exp_data[key][period_key] = exp_data[key].get(period_key, Decimal('0')) + cad
 
+    # Accounts whose spend counts as advertising for blended ROAS.
+    AD_SPEND_ACCOUNTS = {'Advertising Expense'}
+
     # Calculate totals for each period
     period_totals = {
         'income': {},
@@ -269,6 +272,24 @@ def _build_pl_report_data(start_date, end_date, granularity):
         # Net profit for this period
         period_totals['net_profit'][period_key] = period_income - period_cogs - period_expenses
 
+    # Blended ROAS = total revenue (income) / total advertising spend, per period.
+    ad_spend_by_period = {}
+    for (acc_id, acc_name), periods in exp_data.items():
+        if acc_name in AD_SPEND_ACCOUNTS:
+            for period_key, amt in periods.items():
+                ad_spend_by_period[period_key] = ad_spend_by_period.get(period_key, Decimal('0')) + amt
+
+    roas_by_period = {}
+    for col in period_columns:
+        period_key = col['key']
+        spend = ad_spend_by_period.get(period_key, Decimal('0'))
+        income = period_totals['income'].get(period_key, Decimal('0'))
+        roas_by_period[period_key] = (income / spend) if spend and spend != 0 else None
+
+    total_ad_spend = sum(ad_spend_by_period.values())
+    total_income = sum(period_totals['income'].values())
+    roas_total = (total_income / total_ad_spend) if total_ad_spend and total_ad_spend != 0 else None
+
     # Prepare data for template
     income = [
         {
@@ -305,6 +326,8 @@ def _build_pl_report_data(start_date, end_date, granularity):
         'expenses': expenses,
         'period_totals': period_totals,
         'order_counts_by_period': order_counts_by_period,
+        'roas_by_period': roas_by_period,
+        'roas_total': roas_total,
     }
 
 
@@ -350,6 +373,13 @@ def pl_report_csv():
         order_row.append(str(data['order_counts_by_period'].get(col['key'], 0)))
     order_row.append(str(sum(data['order_counts_by_period'].values())))
     writer.writerow(order_row)
+
+    roas_row = ['Income', 'Blended ROAS']
+    for col in period_columns:
+        roas = data['roas_by_period'].get(col['key'])
+        roas_row.append(f"{roas:.2f}" if roas is not None else '')
+    roas_row.append(f"{data['roas_total']:.2f}" if data['roas_total'] is not None else '')
+    writer.writerow(roas_row)
 
     for item in data['income']:
         write_currency_row('Income', item['name'], item['periods'], item['total'])

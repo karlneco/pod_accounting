@@ -101,7 +101,14 @@
           {% endfor %}
           <td class="text-end table-secondary total-col"><strong>{{ order_counts_by_period.values() | sum }}</strong></td>
         </tr>
-        
+        <tr>
+          <td class="sticky-col"><strong>Blended ROAS</strong></td>
+          {% for col in period_columns %}
+          <td class="text-end"><strong>{{ '{:,.2f}x'.format(roas_by_period[col.key]) if roas_by_period[col.key] is not none else '–' }}</strong></td>
+          {% endfor %}
+          <td class="text-end table-secondary total-col"><strong>{{ '{:,.2f}x'.format(roas_total) if roas_total is not none else '–' }}</strong></td>
+        </tr>
+
         {% for item in income %}
         <tr>
           <td class="sticky-col">{{ item.name }}</td>
