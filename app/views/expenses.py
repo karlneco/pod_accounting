@@ -73,6 +73,51 @@ def _ai_status_counts():
     return counts
 
 
+def _parse_expense_line_items(form):
+    """Parse `items-<idx>-{description,account_id,amount}` fields from a form.
+
+    Returns ``(line_items, errors)`` where each line item is a
+    ``(description, account_id, amount)`` tuple. Indexes need not be contiguous.
+    """
+    errors = []
+    line_item_indexes = sorted(
+        {
+            int(parts[1])
+            for key in form.keys()
+            for parts in [key.split('-')]
+            if len(parts) == 3
+            and parts[0] == 'items'
+            and parts[1].isdigit()
+            and parts[2] == 'description'
+        }
+    )
+
+    line_items = []
+    for idx in line_item_indexes:
+        desc = (form.get(f"items-{idx}-description") or '').strip()
+        amt_str = (form.get(f"items-{idx}-amount") or '').strip()
+        acct_id = form.get(f"items-{idx}-account_id", type=int)
+
+        if not desc and not amt_str and not acct_id:
+            continue
+
+        try:
+            amt = Decimal(amt_str)
+        except Exception:
+            amt = None
+            errors.append(f"Line {len(line_items) + 1}: invalid amount")
+
+        if not acct_id:
+            errors.append(f"Line {len(line_items) + 1}: account is required")
+
+        line_items.append((desc, acct_id, amt))
+
+    if not line_items:
+        errors.append("At least one line item is required")
+
+    return line_items, errors
+
+
 def _save_invoice_files(invoice_id, files):
     saved = 0
     rejected = 0
@@ -125,40 +170,8 @@ def create_expense():
             errors.append("Invalid date")
 
         # Parse line-items without assuming contiguous indexes.
-        line_item_indexes = sorted(
-            {
-                int(parts[1])
-                for key in request.form.keys()
-                for parts in [key.split('-')]
-                if len(parts) == 3
-                and parts[0] == 'items'
-                and parts[1].isdigit()
-                and parts[2] == 'description'
-            }
-        )
-
-        line_items = []
-        for idx in line_item_indexes:
-            desc = (request.form.get(f"items-{idx}-description") or '').strip()
-            amt_str = (request.form.get(f"items-{idx}-amount") or '').strip()
-            acct_id = request.form.get(f"items-{idx}-account_id", type=int)
-
-            if not desc and not amt_str and not acct_id:
-                continue
-
-            try:
-                amt = Decimal(amt_str)
-            except:
-                amt = None
-                errors.append(f"Line {len(line_items) + 1}: invalid amount")
-
-            if not acct_id:
-                errors.append(f"Line {len(line_items) + 1}: account is required")
-
-            line_items.append((desc, acct_id, amt))
-
-        if not line_items:
-            errors.append("At least one line item is required")
+        line_items, item_errors = _parse_expense_line_items(request.form)
+        errors.extend(item_errors)
 
         if errors:
             for e in errors:
@@ -588,6 +601,105 @@ def confirm_expenses():
 def show_expense(invoice_id):
     invoice = ExpenseInvoice.query.get_or_404(invoice_id)
     return render_template('expenses/detail.html', invoice=invoice)
+
+
+@bp.route('/<int:invoice_id>/edit', methods=['GET', 'POST'])
+def edit_expense(invoice_id):
+    invoice = ExpenseInvoice.query.get_or_404(invoice_id)
+    providers = Provider.query.order_by(Provider.name).all()
+    accounts = Account.query.order_by(Account.name).all()
+    templates = ExpenseTemplate.query.order_by(ExpenseTemplate.name).all()
+
+    if request.method == 'POST':
+        provider_id = request.form.get('provider_id', type=int)
+        invoice_date_str = request.form.get('invoice_date', '').strip()
+        invoice_number = request.form.get('invoice_number', '').strip() or None
+        supplier_invoice = request.form.get('supplier_invoice', '').strip() or None
+
+        errors = []
+        if not provider_id:
+            errors.append("Provider is required")
+        try:
+            invoice_date = datetime.fromisoformat(invoice_date_str).date()
+        except Exception:
+            invoice_date = None
+            errors.append("Invalid date")
+
+        line_items, item_errors = _parse_expense_line_items(request.form)
+        errors.extend(item_errors)
+
+        if errors:
+            for e in errors:
+                flash(e, 'warning')
+            return render_template(
+                'expenses/form.html',
+                invoice=invoice,
+                providers=providers,
+                accounts=accounts,
+                form={
+                    'provider_id': provider_id,
+                    'invoice_date': invoice_date_str,
+                    'invoice_number': invoice_number,
+                    'supplier_invoice': supplier_invoice,
+                },
+                line_items=line_items,
+                templates=templates,
+                auto_gst=False,
+            )
+
+        prov = Provider.query.get(provider_id)
+
+        # Update header fields
+        invoice.provider_id = provider_id
+        invoice.invoice_date = invoice_date
+        invoice.invoice_number = invoice_number
+        invoice.supplier_invoice = supplier_invoice
+
+        # Replace all line items. The line items are the source of truth: total
+        # is their sum and we do NOT re-inject auto-GST (any tax line the invoice
+        # already carries is preserved as an editable row).
+        for item in list(invoice.items):
+            db.session.delete(item)
+        db.session.flush()
+
+        subtotal = Decimal('0')
+        for desc, acct_id, amt in line_items:
+            db.session.add(ExpenseItem(
+                expense_invoice_id=invoice.id,
+                account_id=acct_id,
+                description=desc,
+                amount=amt,
+                currency_code=prov.currency_code,
+                order_id=invoice_number,
+            ))
+            subtotal += amt
+
+        invoice.total_amount = subtotal
+        db.session.commit()
+
+        flash("Expense updated.", 'success')
+        return redirect(url_for('expenses.show_expense', invoice_id=invoice.id))
+
+    # GET: prefill the form with the existing invoice + its line items
+    line_items = [
+        (item.description or '', item.account_id, item.amount)
+        for item in invoice.items
+    ]
+    return render_template(
+        'expenses/form.html',
+        invoice=invoice,
+        providers=providers,
+        accounts=accounts,
+        form={
+            'provider_id': invoice.provider_id,
+            'invoice_date': invoice.invoice_date.isoformat() if invoice.invoice_date else '',
+            'invoice_number': invoice.invoice_number or '',
+            'supplier_invoice': invoice.supplier_invoice or '',
+        },
+        line_items=line_items,
+        templates=templates,
+        auto_gst=False,
+    )
 
 
 @bp.route('/<int:invoice_id>/delete', methods=['POST'])

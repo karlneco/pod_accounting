@@ -154,6 +154,12 @@
         // Track selected template ID
         let selectedTemplateId = null;
 
+        // When editing an existing expense the line items are the source of
+        // truth: total = sum of lines and GST is NOT auto-calculated (any tax
+        // line is already an editable row).
+        const AUTO_GST = {{ auto_gst|default(true)|tojson }};
+        const IS_EDIT = {{ (invoice is not none)|tojson }};
+
         // === helper to recalc all totals ===
         function recalcTotals() {
             let subtotal = 0;
@@ -168,7 +174,7 @@
             const sel = document.getElementById('provider_id');
             const curr = sel.selectedOptions[0]?.dataset.currency;
             let gst = 0;
-            if (curr === 'CAD') {
+            if (AUTO_GST && curr === 'CAD') {
                 gst = +(subtotal * 0.05).toFixed(2);
                 document.getElementById('gst-row').style.display = '';
                 document.getElementById('gst-amount').textContent =
@@ -249,6 +255,11 @@
         document.getElementById('provider_id').addEventListener('change', async function () {
             const pid = this.value;
             if (!pid) return;
+            // Don't wipe the existing line items when editing an invoice.
+            if (IS_EDIT) {
+                recalcTotals();
+                return;
+            }
             const resp = await fetch(`/expenses/provider/${pid}/last_invoice_items`);
             const {items, currency_code} = await resp.json();
 

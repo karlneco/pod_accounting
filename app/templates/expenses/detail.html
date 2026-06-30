@@ -90,6 +90,10 @@
     <a href="{{ url_for('expenses.list_expenses') }}" class="btn btn-secondary">
       ← Back to Expenses
     </a>
+    <a href="{{ url_for('expenses.edit_expense', invoice_id=invoice.id) }}"
+       class="btn btn-outline-primary">
+      Edit Expense
+    </a>
     <form method="post"
           action="{{ url_for('expenses.delete_expense', invoice_id=invoice.id) }}"
           onsubmit="return confirm('Delete this expense and all its line items/files? This cannot be undone.');">
