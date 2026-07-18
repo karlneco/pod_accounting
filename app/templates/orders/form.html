@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="container mt-5">
+        <h1>Edit Order {{ order.order_number }}</h1>
+
+        <form method="post">
+            <!-- ► Order header -->
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label">Date</label>
+                    <input type="date" name="order_date" class="form-control"
+                           value="{{ form.order_date }}" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Status</label>
+                    <select name="delivery_status" class="form-select">
+                        {% for s in ['pending', 'unfulfilled', 'processing', 'partial', 'fulfilled', 'shipped', 'delivered', 'cancelled'] %}
+                            <option value="{{ s }}" {% if form.delivery_status == s %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Payment Method</label>
+                    <select name="payment_method" class="form-select">
+                        {% for pm in ['shopify', 'paypal', 'other', 'na'] %}
+                            <option value="{{ pm }}" {% if form.payment_method == pm %}selected{% endif %}>{{ pm }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Currency</label>
+                    <select id="currency_code" name="currency_code" class="form-select">
+                        {% for c in currencies %}
+                            <option value="{{ c.code }}" {% if form.currency_code == c.code %}selected{% endif %}>{{ c.code }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- ► Totals -->
+            <div class="row mb-3">
+                <div class="col-md-2">
+                    <label class="form-label">Subtotal</label>
+                    <input type="text" name="sub_total" class="form-control text-end"
+                           value="{{ form.sub_total }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Shipping</label>
+                    <input type="text" name="shipping" class="form-control text-end"
+                           value="{{ form.shipping }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Taxes</label>
+                    <input type="text" name="taxes" class="form-control text-end"
+                           value="{{ form.taxes }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Discount</label>
+                    <input type="text" name="discount_amount" class="form-control text-end"
+                           value="{{ form.discount_amount }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Total</label>
+                    <input type="text" name="total_amount" class="form-control text-end"
+                           value="{{ form.total_amount }}" required>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="button" id="sync-total" class="btn btn-outline-secondary w-100"
+                            title="Set Total = Subtotal + Shipping + Taxes − Discount">
+                        Recalc Total
+                    </button>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label">Discount Code</label>
+                    <input type="text" name="discount_code" class="form-control"
+                           value="{{ form.discount_code }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Discount %</label>
+                    <input type="text" name="discount_percent" class="form-control text-end"
+                           value="{{ form.discount_percent }}">
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label">Notes</label>
+                    <input type="text" name="notes" class="form-control" value="{{ form.notes }}">
+                </div>
+            </div>
+
+            <!-- ► Line Items -->
+            <h4 class="mt-4">Line Items</h4>
+            <table class="table table-bordered" id="items-table">
+                <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Variant</th>
+                    <th class="text-end">Qty</th>
+                    <th class="text-end">Unit Price</th>
+                    <th class="text-end">Subtotal</th>
+                    <th>Account</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="items-body">
+                {% for item in line_items %}
+                    {% set idx = loop.index0 %}
+                    <tr>
+                        <td>
+                            <input type="hidden" name="items-{{ idx }}-product_id" value="{{ item.product_id if item.product_id is not none else '' }}"/>
+                            <input name="items-{{ idx }}-sku" class="form-control" value="{{ item.sku }}"/>
+                        </td>
+                        <td>
+                            <input name="items-{{ idx }}-variant" class="form-control" value="{{ item.variant }}"/>
+                        </td>
+                        <td>
+                            <input name="items-{{ idx }}-quantity" class="form-control text-end qty-input" value="{{ item.quantity }}"/>
+                        </td>
+                        <td>
+                            <input name="items-{{ idx }}-unit_price" class="form-control text-end price-input" value="{{ item.unit_price }}"/>
+                        </td>
+                        <td class="text-end align-middle line-subtotal">$0.00</td>
+                        <td>
+                            <select name="items-{{ idx }}-account_id" class="form-select">
+                                <option value="">--</option>
+                                {% for a in accounts %}
+                                    <option value="{{ a.id }}" {% if item.account_id == a.id %}selected{% endif %}>{{ a.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-danger remove-item">×</button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+            <button type="button" id="add-item" class="btn btn-sm btn-outline-primary mb-3">
+                + Add Item
+            </button>
+
+            <div class="mt-3">
+                <p><strong>Items Subtotal:</strong> <span id="items-subtotal">$0.00</span></p>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{{ url_for('orders.show_order', order_number=order.order_number) }}"
+               class="btn btn-secondary ms-2">Cancel</a>
+        </form>
+    </div>
+
+    <script>
+        function fmt(n) { return '$' + (n || 0).toFixed(2); }
+
+        function recalcRow(row) {
+            const qty = parseFloat(row.querySelector('.qty-input')?.value) || 0;
+            const price = parseFloat(row.querySelector('.price-input')?.value) || 0;
+            const cell = row.querySelector('.line-subtotal');
+            if (cell) cell.textContent = fmt(qty * price);
+            return qty * price;
+        }
+
+        function recalcAll() {
+            let subtotal = 0;
+            document.querySelectorAll('#items-body tr').forEach(row => {
+                subtotal += recalcRow(row);
+            });
+            document.getElementById('items-subtotal').textContent = fmt(subtotal);
+        }
+
+        function renumberItemRows() {
+            const rows = document.querySelectorAll('#items-body tr');
+            rows.forEach((row, index) => {
+                row.querySelectorAll('input, select').forEach(el => {
+                    const m = el.name.match(/^items-\d+-(.+)$/);
+                    if (m) el.name = `items-${index}-${m[1]}`;
+                });
+            });
+            idx = rows.length;
+        }
+
+        let idx = {{ line_items|length }};
+        document.getElementById('add-item').addEventListener('click', () => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+      <td>
+        <input type="hidden" name="items-${idx}-product_id" value="" />
+        <input name="items-${idx}-sku" class="form-control" />
+      </td>
+      <td><input name="items-${idx}-variant" class="form-control" /></td>
+      <td><input name="items-${idx}-quantity" class="form-control text-end qty-input" value="1" /></td>
+      <td><input name="items-${idx}-unit_price" class="form-control text-end price-input" value="0" /></td>
+      <td class="text-end align-middle line-subtotal">$0.00</td>
+      <td>
+        <select name="items-${idx}-account_id" class="form-select">
+          <option value="">--</option>
+          {% for a in accounts %}
+          <option value="{{ a.id }}">{{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      <td><button type="button" class="btn btn-sm btn-danger remove-item">×</button></td>`;
+            document.getElementById('items-body').appendChild(tr);
+            idx++;
+            recalcAll();
+        });
+
+        document.getElementById('items-body').addEventListener('click', e => {
+            if (e.target.matches('.remove-item')) {
+                e.target.closest('tr').remove();
+                renumberItemRows();
+                recalcAll();
+            }
+        });
+
+        document.getElementById('items-body').addEventListener('input', e => {
+            if (e.target.matches('.qty-input, .price-input')) recalcAll();
+        });
+
+        document.getElementById('sync-total').addEventListener('click', () => {
+            const val = id => parseFloat(document.querySelector(`[name="${id}"]`).value) || 0;
+            const total = val('sub_total') + val('shipping') + val('taxes') - val('discount_amount');
+            document.querySelector('[name="total_amount"]').value = total.toFixed(2);
+        });
+
+        renumberItemRows();
+        recalcAll();
+    </script>
+{% endblock %}

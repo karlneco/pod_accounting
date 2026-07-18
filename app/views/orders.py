@@ -10,7 +10,7 @@ from flask import (
 )
 from sqlalchemy import func, cast, String
 
-from ..models import db, Order, Customer, OrderItem, Product, Account, ExpenseItem, Provider, ExpenseInvoice
+from ..models import db, Order, Customer, OrderItem, Product, Account, ExpenseItem, Provider, ExpenseInvoice, Currency
 from ..utils.currency import usd_to_cad
 from ..utils.date_filters import get_date_range
 
@@ -318,6 +318,72 @@ def perform_import(filepath):
     return created_count
 
 
+def _parse_order_line_items(form):
+    """Parse ``items-<idx>-{product_id,sku,variant,quantity,unit_price,account_id}``
+    fields from a form.
+
+    Returns ``(line_items, errors)`` where each line item is a dict. Indexes need
+    not be contiguous. Empty rows (no sku, qty, price or account) are skipped.
+    """
+    errors = []
+    line_item_indexes = sorted(
+        {
+            int(parts[1])
+            for key in form.keys()
+            for parts in [key.split('-')]
+            if len(parts) == 3
+            and parts[0] == 'items'
+            and parts[1].isdigit()
+            and parts[2] == 'sku'
+        }
+    )
+
+    line_items = []
+    for idx in line_item_indexes:
+        sku = (form.get(f"items-{idx}-sku") or '').strip()
+        variant = (form.get(f"items-{idx}-variant") or '').strip() or None
+        qty_str = (form.get(f"items-{idx}-quantity") or '').strip()
+        price_str = (form.get(f"items-{idx}-unit_price") or '').strip()
+        acct_id = form.get(f"items-{idx}-account_id", type=int)
+        product_id = form.get(f"items-{idx}-product_id", type=int)
+
+        if not sku and not qty_str and not price_str and not acct_id:
+            continue
+
+        line_no = len(line_items) + 1
+
+        try:
+            qty = int(qty_str)
+        except Exception:
+            qty = None
+            errors.append(f"Line {line_no}: invalid quantity")
+
+        try:
+            unit_price = Decimal(price_str)
+        except Exception:
+            unit_price = None
+            errors.append(f"Line {line_no}: invalid unit price")
+
+        if not sku:
+            errors.append(f"Line {line_no}: SKU is required")
+        if not acct_id:
+            errors.append(f"Line {line_no}: account is required")
+
+        line_items.append({
+            'product_id': product_id,
+            'sku': sku,
+            'variant': variant,
+            'quantity': qty,
+            'unit_price': unit_price,
+            'account_id': acct_id,
+        })
+
+    if not line_items:
+        errors.append("At least one line item is required")
+
+    return line_items, errors
+
+
 @bp.route('/')
 def list_orders():
     # read filter params
@@ -557,6 +623,21 @@ def show_order(order_number):
     else:
         margin = None
 
+    # Printify supplier invoices for the "attach expense to order" dropdown,
+    # newest first. These are the invoices imported through the printify importer.
+    printify_provider_ids = [
+        p.id for p in Provider.query.filter_by(importer='printify').all()
+    ]
+    if printify_provider_ids:
+        printify_invoices = (
+            ExpenseInvoice.query
+            .filter(ExpenseInvoice.provider_id.in_(printify_provider_ids))
+            .order_by(ExpenseInvoice.invoice_date.desc(), ExpenseInvoice.id.desc())
+            .all()
+        )
+    else:
+        printify_invoices = []
+
     return render_template(
         'orders/detail.html',
         order=order,
@@ -564,5 +645,168 @@ def show_order(order_number):
         cogs_usd=cogs_usd,
         fees_cad=fees_cad,
         profit_cad=profit_cad,
-        margin=margin
+        margin=margin,
+        printify_invoices=printify_invoices
     )
+
+
+@bp.route('/<order_number>/edit', methods=['GET', 'POST'])
+def edit_order(order_number):
+    order = Order.query.filter_by(order_number=order_number).first_or_404()
+    accounts = Account.query.order_by(Account.name).all()
+    currencies = Currency.query.order_by(Currency.code).all()
+
+    if request.method == 'POST':
+        order_date_str = request.form.get('order_date', '').strip()
+        delivery_status = request.form.get('delivery_status', '').strip()
+        payment_method = request.form.get('payment_method', '').strip()
+        currency_code = request.form.get('currency_code', '').strip() or 'USD'
+        discount_code = request.form.get('discount_code', '').strip() or None
+        notes = request.form.get('notes', '').strip() or None
+
+        errors = []
+
+        try:
+            order_date = datetime.fromisoformat(order_date_str).date()
+        except Exception:
+            order_date = None
+            errors.append("Invalid order date")
+
+        def _dec(field, label):
+            raw = (request.form.get(field) or '').strip()
+            try:
+                return Decimal(raw or '0')
+            except Exception:
+                errors.append(f"Invalid {label}")
+                return None
+
+        sub_total = _dec('sub_total', 'subtotal')
+        shipping = _dec('shipping', 'shipping')
+        taxes = _dec('taxes', 'taxes')
+        discount_amount = _dec('discount_amount', 'discount amount')
+        discount_percent = _dec('discount_percent', 'discount percent')
+        total_amount = _dec('total_amount', 'total')
+
+        line_items, item_errors = _parse_order_line_items(request.form)
+        errors.extend(item_errors)
+
+        if errors:
+            for e in errors:
+                flash(e, 'warning')
+            return render_template(
+                'orders/form.html',
+                order=order,
+                accounts=accounts,
+                currencies=currencies,
+                form={
+                    'order_date': order_date_str,
+                    'delivery_status': delivery_status,
+                    'payment_method': payment_method,
+                    'currency_code': currency_code,
+                    'sub_total': request.form.get('sub_total', ''),
+                    'shipping': request.form.get('shipping', ''),
+                    'taxes': request.form.get('taxes', ''),
+                    'discount_amount': request.form.get('discount_amount', ''),
+                    'discount_code': request.form.get('discount_code', ''),
+                    'discount_percent': request.form.get('discount_percent', ''),
+                    'total_amount': request.form.get('total_amount', ''),
+                    'notes': request.form.get('notes', ''),
+                },
+                line_items=line_items,
+            )
+
+        # Update header fields
+        order.order_date = order_date
+        order.delivery_status = delivery_status
+        order.payment_method = payment_method
+        order.sub_total = sub_total
+        order.shipping = shipping
+        order.taxes = taxes
+        order.discount_amount = discount_amount
+        order.discount_code = discount_code
+        order.discount_percent = discount_percent
+        order.total_amount = total_amount
+        order.notes = notes
+
+        # Replace all line items (source of truth for the order's items).
+        for item in list(order.items):
+            db.session.delete(item)
+        db.session.flush()
+
+        for li in line_items:
+            subtotal = (li['unit_price'] * li['quantity'])
+            db.session.add(OrderItem(
+                order_id=order.id,
+                product_id=li['product_id'],
+                product_sku=li['sku'],
+                variant=li['variant'],
+                quantity=li['quantity'],
+                unit_price=li['unit_price'],
+                subtotal=subtotal,
+                currency_code=currency_code,
+                account_id=li['account_id'],
+            ))
+
+        db.session.commit()
+        flash("Order updated.", 'success')
+        return redirect(url_for('orders.show_order', order_number=order.order_number))
+
+    # GET: prefill the form with the existing order + its line items
+    first_item = order.items[0] if order.items else None
+    order_currency = getattr(first_item, 'currency_code', 'USD')
+
+    line_items = [
+        {
+            'product_id': it.product_id,
+            'sku': it.product_sku,
+            'variant': it.variant or '',
+            'quantity': it.quantity,
+            'unit_price': it.unit_price,
+            'account_id': it.account_id,
+        }
+        for it in order.items
+    ]
+    return render_template(
+        'orders/form.html',
+        order=order,
+        accounts=accounts,
+        currencies=currencies,
+        form={
+            'order_date': order.order_date.isoformat() if order.order_date else '',
+            'delivery_status': order.delivery_status,
+            'payment_method': order.payment_method,
+            'currency_code': order_currency,
+            'sub_total': order.sub_total,
+            'shipping': order.shipping,
+            'taxes': order.taxes,
+            'discount_amount': order.discount_amount or 0,
+            'discount_code': order.discount_code or '',
+            'discount_percent': order.discount_percent or 0,
+            'total_amount': order.total_amount,
+            'notes': order.notes or '',
+        },
+        line_items=line_items,
+    )
+
+
+@bp.route('/<order_number>/attach-printify', methods=['POST'])
+def attach_printify_expense(order_number):
+    order = Order.query.filter_by(order_number=order_number).first_or_404()
+    invoice_id = request.form.get('invoice_id', type=int)
+    if not invoice_id:
+        flash('Please select a Printify invoice to attach.', 'warning')
+        return redirect(url_for('orders.show_order', order_number=order_number))
+
+    invoice = ExpenseInvoice.query.get_or_404(invoice_id)
+
+    # Re-point the invoice (and all its line items) at this Shopify order so its
+    # costs roll up into the order's COGS. order_id follows the codebase
+    # convention of storing the order_number.
+    for item in invoice.items:
+        item.order_id = order.order_number
+    invoice.invoice_number = order.order_number
+    db.session.commit()
+
+    label = invoice.supplier_invoice or invoice.invoice_number or invoice.id
+    flash(f"Attached Printify invoice {label} to order {order.order_number}.", 'success')
+    return redirect(url_for('orders.show_order', order_number=order_number))

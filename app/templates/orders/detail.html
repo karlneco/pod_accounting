@@ -2,7 +2,11 @@
 
 {% block content %}
     <div class="container mt-5">
-        <h1>Order {{ order.order_number }}</h1>
+        <div class="d-flex justify-content-between align-items-center">
+            <h1>Order {{ order.order_number }}</h1>
+            <a href="{{ url_for('orders.edit_order', order_number=order.order_number) }}"
+               class="btn btn-outline-primary">Edit Order</a>
+        </div>
 
         <!-- Order header info -->
         <dl class="row">
@@ -127,6 +131,36 @@
         {% else %}
             <p class="text-muted">No expenses recorded for this order.</p>
         {% endif %}
+
+        <!-- Attach a Printify supplier invoice to this order -->
+        <form method="post"
+              action="{{ url_for('orders.attach_printify_expense', order_number=order.order_number) }}"
+              class="mt-3">
+            <label class="form-label">Add a Printify expense to this order</label>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-9">
+                    <select name="invoice_id" class="form-select" required>
+                        <option value="">-- select a Printify supplier invoice --</option>
+                        {% for inv in printify_invoices %}
+                            <option value="{{ inv.id }}">
+                                {{ inv.invoice_date }} ·
+                                Inv #{{ inv.supplier_invoice or '—' }} ·
+                                ${{ '{:,.2f}'.format(inv.total_amount) }}
+                                {% if inv.invoice_number %}· order {{ inv.invoice_number }}{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-outline-primary w-100">
+                        Attach to Order
+                    </button>
+                </div>
+            </div>
+            <div class="form-text">
+                Re-points the selected Printify invoice's costs to this order (newest invoices first).
+            </div>
+        </form>
 
 
         <a href="{{ url_for('orders.list_orders') }}" class="btn btn-secondary mt-3">
